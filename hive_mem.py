@@ -39,15 +39,15 @@ class Tracker(): #Tracker
 class Parameters:
     def __init__(self):
 
-        self.population_size = 50
+        self.population_size = 100
         self.load_seed = False
         self.total_gens = 10000
         self.is_hive_mem = True #Is Hive memory connected/active? If not, no communication between the agents
-        self.num_evals = 10 #Number of different maps to run each individual before getting a fitness
+        self.num_evals = 5 #Number of different maps to run each individual before getting a fitness
 
         #NN specifics
 
-        self.num_hnodes = 40
+        self.num_hnodes = 10
         self.memory_size = self.num_hnodes
 
 
@@ -64,10 +64,10 @@ class Parameters:
         self.dim_x = 10; self.dim_y = 10; self.angle_res = 45; self.obs_dist = 1.0
         self.is_random_spawn = True
         self.num_timesteps = 20
-        self.num_food_skus = 3
+        self.num_food_skus = 1
         self.num_food_items = 3
         self.num_drones = 1
-        self.num_poison_skus = 1
+        self.num_poison_skus = 0
 
         #Dependents
         self.num_input = (360 / self.angle_res) * (self.num_food_skus * 3 + 2)
@@ -99,8 +99,6 @@ class Task_Forage:
         self.hive_pos = [[0.0,0.0] for drone in range (self.num_drones)] #Track each drone's position
         self.hive_action = [[0.0, 0.0] for drone in range (self.num_drones)] #Track each drone's action set
 
-
-
     def reset_food_pos(self):
         start = 1.0;
         end = self.dim_x - 1.0
@@ -110,13 +108,13 @@ class Task_Forage:
         if self.is_random_spawn:
             for sku_id, sku in enumerate(self.food_list):
                 for i, item in enumerate(sku):
-                    if i % self.parameters.num_food_items == 0:
+                    if sku_id % self.parameters.num_food_skus == 0:
                         x = randint(start, center - rad - 1)
                         y = randint(start, end)
-                    elif i % self.parameters.num_food_items == 1:
+                    elif sku_id % self.parameters.num_food_skus == 1:
                         x = randint(center + rad + 1, end)
                         y = randint(start, end)
-                    elif i % self.parameters.num_food_items == 2:
+                    elif sku_id % self.parameters.num_food_skus == 2:
                         x = randint(center - rad, center + rad)
                         y = randint(start, center - rad - 1)
                     else:

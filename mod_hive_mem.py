@@ -5,7 +5,6 @@ import random
 import numpy as np
 from scipy.special import expit
 
-
 class Drone:
     def __init__(self, drone_id, num_input, num_hnodes, num_output, mean = 0, std = 1):
         self_drone_id = drone_id;
@@ -128,7 +127,6 @@ class Drone:
 
     def reset(self):
         self.output = np.mat(np.zeros((1,self.num_output)))
-
 
 class Hive:
     def __init__(self, params, mean = 0, std = 1):
