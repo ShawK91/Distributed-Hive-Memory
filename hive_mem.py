@@ -14,7 +14,7 @@ class Tracker(): #Tracker
 
     def add_fitness(self, fitness, generation):
         self.fitnesses.append(fitness)
-        if len(self.fitnesses) > 100:
+        if len(self.fitnesses) > 50:
             self.fitnesses.pop(0)
         self.avg_fitness = sum(self.fitnesses)/len(self.fitnesses)
         if generation % 10 == 0: #Save to csv file
@@ -24,7 +24,7 @@ class Tracker(): #Tracker
 
     def add_hof_fitness(self, hof_fitness, generation):
         self.hof_fitnesses.append(hof_fitness)
-        if len(self.hof_fitnesses) > 100:
+        if len(self.hof_fitnesses) > 50:
             self.hof_fitnesses.pop(0)
         self.hof_avg_fitness = sum(self.hof_fitnesses)/len(self.hof_fitnesses)
         if generation % 10 == 0: #Save to csv file
@@ -46,6 +46,7 @@ class Parameters:
         self.num_evals = 10 #Number of different maps to run each individual before getting a fitness
 
         #NN specifics
+
         self.num_hnodes = 75
         self.memory_size = self.num_hnodes
 
@@ -62,7 +63,6 @@ class Parameters:
         #Task Params
         self.dim_x = 10; self.dim_y = 10; self.obs_dist = 1.0
         self.num_timesteps = 15
-        self.poison_penalty = 1.0 #Food reward is 1.0, Poison penalty will be decucted in reward
         self.num_food_items = 3
         self.num_drones = 1
         self.num_food_skus = 2
@@ -72,10 +72,11 @@ class Parameters:
         self.angle_res = 45;
         self.state_representation = 1 #1: Bracketed with [avg dist, cardinality, reward]
                                       #2: Bracketed with [avg dist, min_dist, cardinality, reward]
-                                      #3: All drones and food listed (full observability) [x, y, reward]
+                                      #3: All drones and food listed (full observability) [dist, angle, reward]
 
         self.food_spawn_protocol = 1 #1: Localized SKUs
                                      #2: Full Random
+                                     #3: Distributed SKUs
 
         #Dependents
         if self.state_representation == 1: self.num_input = (360 / self.angle_res) * (self.num_food_skus * 3 + 2)
@@ -115,24 +116,28 @@ class Task_Forage:
         rad = int(self.dim_x / math.sqrt(3) / 2.0)
         center = int((start + end) / 2.0)
 
-        dist_ctrl = randint(0,3) #Distribution control temp variable
-        for sku_id in range(self.parameters.num_food_skus):
-            dist_ctrl += 1
-            for i in range(self.parameters.num_food_items):
-                if self.parameters.food_spawn_protocol == 2: dist_ctrl += randint(0, 3) #Random distribution
-                if  dist_ctrl % 4 == 0:
-                    x = randint(start, center - rad)
+
+        for sku_id, sku in enumerate(self.food_list):
+            for i, item in enumerate(sku):
+                if self.parameters.food_spawn_protocol == 1: spawn_ctrl = sku_id
+                elif self.parameters.food_spawn_protocol == 2: spawn_ctrl = randint(0,3)
+                elif self.parameters.food_spawn_protocol == 3: spawn_ctrl = i
+
+                if  spawn_ctrl % self.parameters.num_food_skus == 0:
+                    x = randint(start, center - rad - 1)
                     y = randint(start, end)
-                elif dist_ctrl % 4 == 1:
-                    x = randint(center + rad, end)
+                elif spawn_ctrl % self.parameters.num_food_skus == 1:
+                    x = randint(center + rad + 1, end)
                     y = randint(start, end)
-                elif dist_ctrl % 4 == 2:
+                elif spawn_ctrl % self.parameters.num_food_skus == 2:
                     x = randint(center - rad, center + rad)
-                    y = randint(start, center - rad)
+                    y = randint(start, center - rad - 1)
                 else:
                     x = randint(center - rad, center + rad)
-                    y = randint(center + rad, end)
+                    y = randint(center + rad + 1, end)
                 self.food_list[sku_id][i] = (x,y)
+
+
 
     def reset_food_status(self):
         self.food_status = [[False for item in range(self.parameters.num_food_items)] for sku in
@@ -212,7 +217,6 @@ class Task_Forage:
                 state[bracket][1] = len(temp_drone_dist_list[bracket])
                 if state[bracket][1] > 0:
                     state[bracket][0] = sum(temp_drone_dist_list[bracket])/len(temp_drone_dist_list[bracket])
-                else: state[bracket][0] = self.dim_x + self.dim_y #Max distance
 
                 #Foods
                 for sku_id in range(self.num_foodskus):
@@ -220,7 +224,6 @@ class Task_Forage:
                     state[bracket][iter_pos + 1] = len(temp_food_dist_list[sku_id][bracket])
                     if state[bracket][iter_pos + 1] > 0:
                         state[bracket][iter_pos] = sum(temp_food_dist_list[sku_id][bracket])/len(temp_food_dist_list[sku_id][bracket])
-                    else: state[bracket][iter_pos] = self.dim_y + self.dim_x
             state = state.flatten().tolist()
 
         elif self.parameters.state_representation == 2: #State rep 2
@@ -241,7 +244,7 @@ class Task_Forage:
                         bracket = int(angle / self.angle_res)
                         temp_food_dist_list[sku_id][bracket].append(dist)
                         if dist <= self.obs_dist: #Reward info
-                            iter_pos = 3 + sku_id * 4
+                            iter_pos = 2 + sku_id * 4
                             if self.food_poison_info[sku_id]:
                                 state[bracket][iter_pos + 3] -= 1.0
                             else: state[bracket][iter_pos + 3] += 1.0
@@ -263,18 +266,14 @@ class Task_Forage:
                 if state[bracket][2] > 0:
                     state[bracket][0] = sum(temp_drone_dist_list[bracket])/len(temp_drone_dist_list[bracket])
                     state[bracket][1] = min(temp_drone_dist_list[bracket])
-                else:
-                    state[bracket][0] = self.dim_y + self.dim_x; state[bracket][1] = self.dim_y + self.dim_x
 
                 #Foods
                 for sku_id in range(self.num_foodskus):
-                    iter_pos = 3 + sku_id * 4
+                    iter_pos = 2 + sku_id * 4
                     state[bracket][iter_pos + 2] = len(temp_food_dist_list[sku_id][bracket])
                     if state[bracket][iter_pos + 2] > 0:
                         state[bracket][iter_pos] = sum(temp_food_dist_list[sku_id][bracket])/len(temp_food_dist_list[sku_id][bracket])
                         state[bracket][iter_pos+1] = min(temp_food_dist_list[sku_id][bracket])
-                    else:
-                        state[bracket][iter_pos] = self.dim_y + self.dim_x; state[bracket][iter_pos + 1] = self.dim_y + self.dim_x
             state = state.flatten().tolist()
 
         elif self.parameters.state_representation == 3:  # State rep 3
@@ -291,23 +290,22 @@ class Task_Forage:
                     if self.food_status[sku_id][item_id] == True:  # If accessed fill with large value
                         state[iter_pos] = self.dim_y + self.dim_x
                     else:
-                        state[iter_pos] = x1
-                        state[iter_pos + 1] = y1
+                        state[iter_pos] = dist
+                        state[iter_pos + 1] = angle / 360.0
                         if dist <= self.obs_dist:  # Reward info
                             if self.food_poison_info[sku_id]: state[iter_pos + 2] -= 1.0
                             else: state[iter_pos + 2] += 1.0
                             self.food_status[sku_id][item_id] = True
 
             # Log all distance into brackets for other drones
-            iter_pos+=1
             for other_drone_id in range(self.num_drones):
                 if other_drone_id != drone_id:  # Not the drone itself (don't count itself)
                     iter_pos += 2
                     x1 = self.hive_pos[other_drone_id][0] - self_x; x2 = -1.0
                     y1 = self.hive_pos[other_drone_id][1] - self_y; y2 = 0.0
-                    #angle, dist = self.get_angle_dist(x1, y1, x2, y2)
-                    state[iter_pos] = x1
-                    state[iter_pos + 1] = y1
+                    angle, dist = self.get_angle_dist(x1, y1, x2, y2)
+                    state[iter_pos] = dist
+                    state[iter_pos + 1] = angle / 360.0
 
         return state
 
@@ -351,8 +349,8 @@ class Task_Forage:
         self.soft_reset()
         hive.reset()
         for timestep in range(self.parameters.num_timesteps):
-            #self.visualize()
-            #raw_input('Continue')
+            self.visualize()
+            raw_input('Continue')
             for drone_id in range(self.num_drones):
                 state = self.get_state(drone_id)
                 action = hive.forward(state, drone_id) #Run drones one step
@@ -365,7 +363,7 @@ class Task_Forage:
             for item_id in range(self.num_food_items):
                 if self.food_status[sku_id][item_id]: #If food is accessed
                     if self.food_poison_info[sku_id]: #If food is poisonous
-                        reward -= self.parameters.poison_penalty
+                        reward -= 1.0
                     else: reward += 1.0
 
         return reward
@@ -441,7 +439,7 @@ class Task_Forage:
 if __name__ == "__main__":
     parameters = Parameters()  # Create the Parameters class
     tracker = Tracker(parameters)  # Initiate tracker
-    print 'Hive Memory Training with', parameters.num_input, 'inputs'
+    print 'Hive Memory Training '
 
     sim_task = Task_Forage(parameters)
     for gen in range(1, parameters.total_gens):

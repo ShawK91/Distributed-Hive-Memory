@@ -146,10 +146,7 @@ class Hive:
             drone.reset()
 
     def forward(self, input, drone_id):
-        if self.params.is_hive_mem: #hive memory turned on
-            output, self.memory = self.all_drones[drone_id].graph_compute(input, self.memory)
-        else: #Memory off (feedforward nets)
-            output, _ = self.all_drones[drone_id].graph_compute(input, self.memory)
+        output, self.memory = self.all_drones[drone_id].graph_compute(input, self.memory)
         return output[0]
 
 
