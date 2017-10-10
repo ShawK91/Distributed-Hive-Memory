@@ -1,41 +1,9 @@
-import numpy as np, os, math
+import numpy as np, os, math, random
 import mod_hive_mem as mod, sys
 from random import randint
 
 
-class Tracker(): #Tracker
-    def __init__(self, parameters):
-        self.foldername = parameters.save_foldername
-        self.fitnesses = []; self.avg_fitness = 0; self.tr_avg_fit = []
-        self.hof_fitnesses = []; self.hof_avg_fitness = 0; self.hof_tr_avg_fit = []
-        if not os.path.exists(self.foldername):
-            os.makedirs(self.foldername)
-        self.file_save = 'Hive_Mem.csv'
-
-    def add_fitness(self, fitness, generation):
-        self.fitnesses.append(fitness)
-        if len(self.fitnesses) > 100:
-            self.fitnesses.pop(0)
-        self.avg_fitness = sum(self.fitnesses)/len(self.fitnesses)
-        if generation % 10 == 0: #Save to csv file
-            filename = self.foldername + 'champ_train' + self.file_save
-            self.tr_avg_fit.append(np.array([generation, self.avg_fitness]))
-            np.savetxt(filename, np.array(self.tr_avg_fit), fmt='%.3f', delimiter=',')
-
-    def add_hof_fitness(self, hof_fitness, generation):
-        self.hof_fitnesses.append(hof_fitness)
-        if len(self.hof_fitnesses) > 100:
-            self.hof_fitnesses.pop(0)
-        self.hof_avg_fitness = sum(self.hof_fitnesses)/len(self.hof_fitnesses)
-        if generation % 10 == 0: #Save to csv file
-            filename = self.foldername + 'champ_valid' + self.file_save
-            self.hof_tr_avg_fit.append(np.array([generation, self.hof_avg_fitness]))
-            np.savetxt(filename, np.array(self.hof_tr_avg_fit), fmt='%.3f', delimiter=',')
-
-    def save_csv(self, generation, filename):
-        self.tr_avg_fit.append(np.array([generation, self.avg_fitness]))
-        np.savetxt(filename, np.array(self.tr_avg_fit), fmt='%.3f', delimiter=',')
-
+#Shell
 class Parameters:
     def __init__(self):
 
@@ -43,26 +11,26 @@ class Parameters:
         self.load_seed = False
         self.total_gens = 100000
         self.is_hive_mem = True #Is Hive memory connected/active? If not, no communication between the agents
-        self.num_evals = 10 #Number of different maps to run each individual before getting a fitness
+        self.num_evals = 5 #Number of different maps to run each individual before getting a fitness
 
         #NN specifics
-        self.num_hnodes = 75
+        self.num_hnodes = 20
         self.memory_size = self.num_hnodes
 
 
         #SSNE stuff
         self.elite_fraction = 0.04
         self.crossover_prob = 0.05
-        self.mutation_prob = 0.7
+        self.mutation_prob = 0.9
         self.extinction_prob = 0.004 #Probability of extinction event
         self.extinction_magnituide = 0.5 #Probabilty of extinction for each genome, given an extinction event
         self.weight_magnitude_limit = 10000000
         self.mut_distribution = 3 #1-Gaussian, 2-Laplace, 3-Uniform, ELSE-all 1s
 
         #Task Params
-        self.dim_x = 10; self.dim_y = 10; self.obs_dist = 1.0
-        self.num_timesteps = 15
-        self.poison_penalty = 1.0 #Food reward is 1.0, Poison penalty will be decucted in reward
+        self.dim_x = 10; self.dim_y = 10; self.obs_dist = 1
+        self.num_timesteps = 25
+        self.poison_penalty = 0.9 #Food reward is 1.0, Poison penalty will be decucted in reward
         self.num_food_items = 3
         self.num_drones = 1
         self.num_food_skus = 2
@@ -70,7 +38,7 @@ class Parameters:
 
         #State representation
         self.angle_res = 45;
-        self.state_representation = 1 #1: Bracketed with [avg dist, cardinality, reward]
+        self.state_representation = 2 #1: Bracketed with [avg dist, cardinality, reward]
                                       #2: Bracketed with [avg dist, min_dist, cardinality, reward]
                                       #3: All drones and food listed (full observability) [x, y, reward]
 
@@ -356,6 +324,7 @@ class Task_Forage:
             for drone_id in range(self.num_drones):
                 state = self.get_state(drone_id)
                 action = hive.forward(state, drone_id) #Run drones one step
+                print action
                 self.hive_action[drone_id][0], self.hive_action[drone_id][1] = action[0], action[1]
             self.move() #Move the entire hive up one step
 
@@ -365,7 +334,7 @@ class Task_Forage:
             for item_id in range(self.num_food_items):
                 if self.food_status[sku_id][item_id]: #If food is accessed
                     if self.food_poison_info[sku_id]: #If food is poisonous
-                        reward -= self.parameters.poison_penalty
+                        reward -= 1.0
                     else: reward += 1.0
 
         return reward
@@ -439,16 +408,17 @@ class Task_Forage:
 
 
 if __name__ == "__main__":
-    parameters = Parameters()  # Create the Parameters class
-    tracker = Tracker(parameters)  # Initiate tracker
-    print 'Hive Memory Training with', parameters.num_input, 'inputs'
+    print 'Visualization'
 
-    sim_task = Task_Forage(parameters)
-    for gen in range(1, parameters.total_gens):
-        best_train_fitness, validation_fitness = sim_task.evolve(gen)
-        print 'Gen:', gen, 'Epoch_best:', best_train_fitness, ' Valid_Fitness:', validation_fitness
-        tracker.add_fitness(best_train_fitness, gen)  # Add best global performance to tracker
-        tracker.add_hof_fitness(validation_fitness, gen)  # Add validation global performance to tracker
+    test_hive = mod.unpickle('R_Hive_mem/champion')
+    task = Task_Forage(test_hive.params)
+
+    for i in range(10):
+        task.hard_reset()
+        print task.run_trial(test_hive)
+        print
+
+
 
 
 
