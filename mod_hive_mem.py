@@ -209,8 +209,8 @@ class Fast_SSNE:
                     #W2[keys[tensor_choice]][ind_cr, :] = W1[keys[tensor_choice]][ind_cr, :]
 
     def mutate_inplace(self, hive):
-        mut_strength = 0.2
-        num_mutation_frac = 0.2
+        mut_strength = 0.1
+        num_mutation_frac = 0.1
         super_mut_strength = 10
         super_mut_prob = 0.05
         reset_prob = super_mut_prob + 0.05
