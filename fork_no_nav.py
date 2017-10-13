@@ -47,6 +47,8 @@ class Parameters:
         #NN specifics
         self.num_hnodes = 25
         self.num_mem = self.num_hnodes
+        self.grumb_topology = 1 #1: Default (hidden nodes cardinality attached to that of mem (No trascriber))
+                                #2: Detached (Memory independent from hidden nodes (transcribing function))
 
 
         #SSNE stuff
@@ -61,7 +63,7 @@ class Parameters:
         #Task Params
         self.dim_x = 10; self.dim_y = 10; self.obs_dist = 1.0
         self.num_timesteps = 8
-        self.num_food_items = 3
+        self.num_food_items = 4
         self.num_drones = 1
         self.num_food_skus = 2
         self.num_poison_skus = 1

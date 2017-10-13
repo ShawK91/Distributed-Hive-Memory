@@ -5,38 +5,42 @@ import random
 import numpy as np
 from scipy.special import expit
 
-class Drone:
-    def __init__(self, drone_id, num_input, num_hnodes, num_output, mean = 0, std = 1):
+
+class Drone_Default:
+    def __init__(self, drone_id, num_input, num_hnodes, num_mem, num_output):
         self_drone_id = drone_id;
         self.num_input = num_input; self.num_output = num_output; self.num_hnodes = num_hnodes
 
+        #Mean and std
+        mean = 0; std_input = 1.0/(math.sqrt(num_input)); std_hnodes = 1.0/(math.sqrt(num_hnodes)); std_mem = 1.0/(math.sqrt(num_mem)); std_output = 1.0/(math.sqrt(num_output))
+
         #Input gate
-        self.w_inpgate = np.mat(np.random.normal(mean, std, (num_input, num_hnodes)))
-        self.w_rec_inpgate = np.mat(np.random.normal(mean, std, (num_output, num_hnodes)))
-        self.w_mem_inpgate = np.mat(np.random.normal(mean, std, (num_hnodes, num_hnodes)))
+        self.w_inpgate = np.mat(np.random.normal(mean, std_input, (num_input, num_hnodes)))
+        self.w_rec_inpgate = np.mat(np.random.normal(mean, std_output, (num_output, num_hnodes)))
+        self.w_mem_inpgate = np.mat(np.random.normal(mean, std_mem, (num_mem, num_hnodes)))
 
         #Block Input
-        self.w_inp = np.mat(np.random.normal(mean, std, (num_input, num_hnodes)))
-        self.w_rec_inp = np.mat(np.random.normal(mean, std, (num_output, num_hnodes)))
+        self.w_inp = np.mat(np.random.normal(mean, std_input, (num_input, num_hnodes)))
+        self.w_rec_inp = np.mat(np.random.normal(mean, std_output, (num_output, num_hnodes)))
 
         #Forget gate
-        self.w_readgate = np.mat(np.random.normal(mean, std, (num_input, num_hnodes)))
-        self.w_rec_readgate = np.mat(np.random.normal(mean, std, (num_output, num_hnodes)))
-        self.w_mem_readgate = np.mat(np.random.normal(mean, std, (num_hnodes, num_hnodes)))
+        self.w_readgate = np.mat(np.random.normal(mean, std_input, (num_input, num_hnodes)))
+        self.w_rec_readgate = np.mat(np.random.normal(mean, std_output, (num_output, num_hnodes)))
+        self.w_mem_readgate = np.mat(np.random.normal(mean, std_mem, (num_mem, num_hnodes)))
 
         #Memory write gate
-        self.w_writegate = np.mat(np.random.normal(mean, std, (num_input, num_hnodes)))
-        self.w_rec_writegate = np.mat(np.random.normal(mean, std, (num_output, num_hnodes)))
-        self.w_mem_writegate = np.mat(np.random.normal(mean, std, (num_hnodes, num_hnodes)))
+        self.w_writegate = np.mat(np.random.normal(mean, std_input, (num_input, num_hnodes)))
+        self.w_rec_writegate = np.mat(np.random.normal(mean, std_output, (num_output, num_hnodes)))
+        self.w_mem_writegate = np.mat(np.random.normal(mean, std_mem, (num_mem, num_hnodes)))
 
         #Output weights
-        self.w_hid_out= np.mat(np.random.normal(mean, std, (num_hnodes, num_output)))
+        self.w_hid_out= np.mat(np.random.normal(mean, std_hnodes, (num_hnodes, num_output)))
 
         #Biases
-        self.w_input_gate_bias = np.mat(np.random.normal(mean, std, (1, num_hnodes)))
-        self.w_block_input_bias = np.mat(np.random.normal(mean, std, (1, num_hnodes)))
-        self.w_readgate_bias = np.mat(np.random.normal(mean, std, (1, num_hnodes)))
-        self.w_writegate_bias = np.mat(np.random.normal(mean, std, (1, num_hnodes)))
+        self.w_input_gate_bias = np.mat(np.random.normal(mean, 0.1, (1, num_hnodes)))
+        self.w_block_input_bias = np.mat(np.random.normal(mean, 0.1, (1, num_hnodes)))
+        self.w_readgate_bias = np.mat(np.random.normal(mean, 0.1, (1, num_mem)))
+        self.w_writegate_bias = np.mat(np.random.normal(mean, 0.1, (1, num_mem)))
 
         #Adaptive components (plastic with network running)
         self.output = np.mat(np.zeros((1, self.num_output)))
@@ -128,20 +132,155 @@ class Drone:
     def reset(self):
         self.output = np.mat(np.zeros((1,self.num_output)))
 
+class Drone_Detached:
+    def __init__(self, drone_id, num_input, num_hnodes, num_mem, num_output):
+        self_drone_id = drone_id;
+        self.num_input = num_input; self.num_output = num_output; self.num_hnodes = num_hnodes; self.num_mem = num_mem
+
+        #Mean and std
+        mean = 0; std_input = 1.0/(math.sqrt(num_input)); std_hnodes = 1.0/(math.sqrt(num_hnodes)); std_mem = 1.0/(math.sqrt(num_mem)); std_output = 1.0/(math.sqrt(num_output))
+
+        #Input gate
+        self.w_inpgate = np.mat(np.random.normal(mean, std_input, (num_input, num_hnodes)))
+        self.w_rec_inpgate = np.mat(np.random.normal(mean, std_output, (num_output, num_hnodes)))
+        self.w_mem_inpgate = np.mat(np.random.normal(mean, std_mem, (num_mem, num_hnodes)))
+
+        #Block Input
+        self.w_inp = np.mat(np.random.normal(mean, std_input, (num_input, num_hnodes)))
+        self.w_rec_inp = np.mat(np.random.normal(mean, std_output, (num_output, num_hnodes)))
+
+        #Read gate
+        self.w_readgate = np.mat(np.random.normal(mean, std_input, (num_input, num_mem)))
+        self.w_rec_readgate = np.mat(np.random.normal(mean, std_output, (num_output, num_mem)))
+        self.w_mem_readgate = np.mat(np.random.normal(mean, std_mem, (num_mem, num_mem)))
+        self.w_mem_hid = np.mat(np.random.normal(mean, std_mem, (num_mem, num_hnodes)))
+
+        #Memory write gate
+        self.w_writegate = np.mat(np.random.normal(mean, std_input, (num_input, num_mem)))
+        self.w_rec_writegate = np.mat(np.random.normal(mean, std_output, (num_output, num_mem)))
+        self.w_mem_writegate = np.mat(np.random.normal(mean, std_mem, (num_mem, num_mem)))
+        self.w_hid_mem = np.mat(np.random.normal(mean, std_hnodes (num_hnodes, num_mem)))
+
+        #Output weights
+        self.w_hid_out= np.mat(np.random.normal(mean, std_hnodes, (num_hnodes, num_output)))
+
+        #Biases
+        self.w_input_gate_bias = np.mat(np.random.normal(mean, 0.1, (1, num_hnodes)))
+        self.w_block_input_bias = np.mat(np.random.normal(mean, 0.1, (1, num_hnodes)))
+        self.w_readgate_bias = np.mat(np.random.normal(mean, 0.1, (1, num_mem)))
+        self.w_writegate_bias = np.mat(np.random.normal(mean, 0.1, (1, num_mem)))
+
+        #Adaptive components (plastic with network running)
+        self.output = np.mat(np.zeros((1, self.num_output)))
+
+        self.param_dict = {'w_inpgate': self.w_inpgate,
+                           'w_rec_inpgate': self.w_rec_inpgate,
+                           'w_mem_inpgate': self.w_mem_inpgate,
+                           'w_inp': self.w_inp,
+                           'w_rec_inp': self.w_rec_inp,
+                            'w_readgate': self.w_readgate,
+                            'w_rec_readgate': self.w_rec_readgate,
+                            'w_mem_readgate': self.w_mem_readgate,
+                            'w_writegate': self.w_writegate,
+                            'w_rec_writegate': self.w_rec_writegate,
+                            'w_mem_writegate': self.w_mem_writegate,
+                           'w_hid_out': self.w_hid_out,
+                            'w_input_gate_bias': self.w_input_gate_bias,
+                           'w_block_input_bias': self.w_block_input_bias,
+                            'w_readgate_bias': self.w_readgate_bias,
+                           'w_writegate_bias': self.w_writegate_bias,
+                           'w_mem_hid': self.w_mem_hid,
+                           'w_hid_mem': self.w_hid_mem}
+
+    def linear_combination(self, w_matrix, layer_input): #Linear combine weights with inputs
+        return np.dot(w_matrix, layer_input) #Linear combination of weights and inputs
+
+    def relu(self, layer_input):    #Relu transformation function
+        for x in range(len(layer_input)):
+            if layer_input[x] < 0:
+                layer_input[x] = 0
+        return layer_input
+
+    def fast_sigmoid(self, layer_input): #Sigmoid transform
+        layer_input = expit(layer_input)
+        return layer_input
+
+    def softmax(self, layer_input): #Softmax transform
+        layer_input = np.exp(layer_input)
+        layer_input = layer_input / np.sum(layer_input)
+        return layer_input
+
+    def graph_compute(self, input, memory): #Feedforwards the input and computes the forward pass of the network
+        input = np.mat(input)
+
+        #Input gate
+        ig_1 = self.linear_combination(input, self.w_inpgate)
+        ig_2 = self.linear_combination(self.output, self.w_rec_inpgate)
+        ig_3 = self.linear_combination(memory, self.w_mem_inpgate)
+        input_gate_out = ig_1 + ig_2 + ig_3 + self.w_input_gate_bias
+        input_gate_out = self.fast_sigmoid(input_gate_out)
+
+        #Input processing
+        ig_1 = self.linear_combination(input, self.w_inp)
+        ig_2 = self.linear_combination(self.output, self.w_rec_inp)
+        block_input_out = ig_1 + ig_2 + self.w_block_input_bias
+        block_input_out = np.tanh(block_input_out)
+
+        #Gate the Block Input and compute the final input out
+        input_out = np.multiply(input_gate_out, block_input_out)
+
+        #Read Gate
+        ig_1 = self.linear_combination(input, self.w_readgate)
+        ig_2 = self.linear_combination(self.output, self.w_rec_readgate)
+        ig_3 = self.linear_combination(memory, self.w_mem_readgate)
+        read_gate_out = ig_1 + ig_2 + ig_3 + self.w_readgate_bias
+        read_gate_out = self.fast_sigmoid(read_gate_out)
+
+        #Memory Output
+        memory_output = np.multiply(read_gate_out, memory)
+
+        #Compute hidden activation - processing hidden output for this iteration of net run
+        hidden_act = np.tanh(self.linear_combination(memory_output, self.w_mem_hid)) + input_out
+
+        #Write gate (memory cell)
+        ig_1 = self.linear_combination(input, self.w_writegate)
+        ig_2 = self.linear_combination(self.output, self.w_rec_writegate)
+        ig_3 = self.linear_combination(memory, self.w_mem_writegate)
+        write_gate_out = ig_1 + ig_2 + ig_3 + self.w_writegate_bias
+        write_gate_out = self.fast_sigmoid(write_gate_out)
+
+        #Write to memory Cell - Update memory
+        memory += np.multiply(write_gate_out, np.tanh(self.linear_combination(hidden_act, self.w_hid_mem)))
+
+        #Compute final output
+        self.output = self.linear_combination(hidden_act, self.w_hid_out)
+        self.output = np.tanh(self.output)
+
+        return np.array(self.output).tolist(), memory
+
+    def reset(self):
+        self.output = np.mat(np.zeros((1,self.num_output)))
+
+
 class Hive:
     def __init__(self, params, mean = 0, std = 1):
         self.params = params;
 
         #Hive Memory
-        self.memory = np.mat(np.zeros((1, self.params.memory_size)))
+        self.memory = np.mat(np.zeros((1, self.params.num_mem)))
 
         #Initialize drones (controllers)
         self.all_drones = []
         for drone_id in range(self.params.num_drones):
-            self.all_drones.append(Drone(drone_id, params.num_input, params.num_hnodes, params.num_output, mean = 0, std = 1))
+            if params.grumb_topology == 1:
+                self.all_drones.append(
+                    Drone_Default(drone_id, params.num_input, params.num_hnodes, params.num_mem, params.num_output))
+            if params.grumb_topology == 2:
+                self.all_drones.append(
+                    Drone_Detached(drone_id, params.num_input, params.num_hnodes, params.num_mem, params.num_output))
 
     def reset(self):
-        self.memory = np.mat(np.zeros((1,self.params.memory_size)))
+        self.memory = np.mat(np.zeros((1,self.params.num_mem)))
         for drone in self.all_drones:
             drone.reset()
 
