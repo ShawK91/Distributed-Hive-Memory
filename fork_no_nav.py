@@ -42,17 +42,17 @@ class Parameters:
         self.load_seed = False
         self.total_gens = 100000
         self.is_hive_mem = True #Is Hive memory connected/active? If not, no communication between the agents
-        self.num_evals = 5 #Number of different maps to run each individual before getting a fitness
+        self.num_evals = 10 #Number of different maps to run each individual before getting a fitness
 
         #NN specifics
         self.num_hnodes = 25
-        self.num_mem = self.num_hnodes
-        self.grumb_topology = 1 #1: Default (hidden nodes cardinality attached to that of mem (No trascriber))
+        self.num_mem = 10
+        self.grumb_topology = 2 #1: Default (hidden nodes cardinality attached to that of mem (No trascriber))
                                 #2: Detached (Memory independent from hidden nodes (transcribing function))
 
 
         #SSNE stuff
-        self.elite_fraction = 0.04
+        self.elite_fraction = 0.07
         self.crossover_prob = 0.05
         self.mutation_prob = 0.9
         self.extinction_prob = 0.004 #Probability of extinction event
@@ -62,7 +62,7 @@ class Parameters:
 
         #Task Params
         self.dim_x = 10; self.dim_y = 10; self.obs_dist = 1.0
-        self.num_timesteps = 8
+        self.num_timesteps = 10
         self.num_food_items = 4
         self.num_drones = 1
         self.num_food_skus = 2
@@ -70,6 +70,8 @@ class Parameters:
 
         #State representation
         self.angle_res = 45;
+        self.action_representation = 2 #1: sku_id, item as sepaarate softmax
+                                       #2: All merged softmax
         self.state_representation = 3 #1: Bracketed with [avg dist, cardinality, reward]
                                       #2: Bracketed with [avg dist, min_dist, cardinality, reward]
                                       #3: All drones and food listed (full observability) [dist, angle, reward]
@@ -82,7 +84,8 @@ class Parameters:
         if self.state_representation == 1: self.num_input = (360 / self.angle_res) * (self.num_food_skus * 3 + 2)
         if self.state_representation == 2: self.num_input = (360 / self.angle_res) * (self.num_food_skus * 4 + 3)
         if self.state_representation == 3: self.num_input = (self.num_food_skus * self.num_food_items* 3 + (self.num_drones-1) * 2)
-        self.num_output = self.num_food_skus + self.num_food_items
+        if self.action_representation == 1: self.num_output = self.num_food_skus + self.num_food_items
+        if self.action_representation == 2: self.num_output = self.num_food_skus * self.num_food_items
         self.save_foldername = 'R_Hive_mem/'
         if not os.path.exists(self.save_foldername):
             os.makedirs(self.save_foldername)
@@ -351,16 +354,28 @@ class Task_Forage:
 
     def compute_drone_next_action(self, action, drone_id):
         if self.parameters.state_representation == 3:  # State rep 3
-            #Compute choice of food from softmax action
-            sku_softmax = action[0:self.num_foodskus]
-            item_softmax = action[self.num_foodskus:]
+            if self.parameters.action_representation == 1:
+                # Compute choice of food from softmax action
+                sku_softmax = action[0:self.num_foodskus]
+                item_softmax = action[self.num_foodskus:]
 
-            sku_choice = sku_softmax.index(max(sku_softmax))
-            item_choice = item_softmax.index(max(item_softmax))
+                sku_choice = sku_softmax.index(max(sku_softmax))
+                item_choice = item_softmax.index(max(item_softmax))
 
-            #Compute the targeted food item and compute the action required to travel there (Lower level controller)
-            target = self.food_list[sku_choice][item_choice]
-            self.hive_action[drone_id] = [target[0]-self.hive_pos[drone_id][0], target[1]-self.hive_pos[drone_id][1]]
+                # Compute the targeted food item and compute the action required to travel there (Lower level controller)
+                target = self.food_list[sku_choice][item_choice]
+                self.hive_action[drone_id] = [target[0] - self.hive_pos[drone_id][0],
+                                              target[1] - self.hive_pos[drone_id][1]]
+
+            elif self.parameters.action_representation == 2:
+                action_choice = action.index(max(action))
+
+                #Compute sku and item from serialized action_choice
+                sku_choice = action_choice/self.num_food_items; item_choice = action_choice % self.num_food_items
+
+                #Compute the targeted food item and compute the action required to travel there (Lower level controller)
+                target = self.food_list[sku_choice][item_choice]
+                self.hive_action[drone_id] = [target[0]-self.hive_pos[drone_id][0], target[1]-self.hive_pos[drone_id][1]]
 
     def run_trial(self, hive):
         self.soft_reset()
@@ -410,9 +425,9 @@ class Task_Forage:
 
         #Run simulation of champion individual (validation_score)
         validation_fitness = 0.0
-        for eval_id in range(self.parameters.num_evals * 2):  # Multiple evals in different map inits to compute one fitness
+        for eval_id in range(self.parameters.num_evals):  # Multiple evals in different map inits to compute one fitness
             self.hard_reset()
-            validation_fitness += self.run_trial(self.all_hives[champion_index])/(self.parameters.num_evals*2.0)
+            validation_fitness += self.run_trial(self.all_hives[champion_index])/(self.parameters.num_evals)
 
         #Save champion
         if gen % 100 == 0:

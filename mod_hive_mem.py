@@ -9,7 +9,7 @@ from scipy.special import expit
 class Drone_Default:
     def __init__(self, drone_id, num_input, num_hnodes, num_mem, num_output):
         self_drone_id = drone_id;
-        self.num_input = num_input; self.num_output = num_output; self.num_hnodes = num_hnodes
+        self.num_input = num_input; self.num_output = num_output; self.num_hnodes = num_hnodes, num_mem = num_hnodes
 
         #Mean and std
         mean = 0; std_input = 1.0/(math.sqrt(num_input)); std_hnodes = 1.0/(math.sqrt(num_hnodes)); std_mem = 1.0/(math.sqrt(num_mem)); std_output = 1.0/(math.sqrt(num_output))
@@ -159,7 +159,7 @@ class Drone_Detached:
         self.w_writegate = np.mat(np.random.normal(mean, std_input, (num_input, num_mem)))
         self.w_rec_writegate = np.mat(np.random.normal(mean, std_output, (num_output, num_mem)))
         self.w_mem_writegate = np.mat(np.random.normal(mean, std_mem, (num_mem, num_mem)))
-        self.w_hid_mem = np.mat(np.random.normal(mean, std_hnodes (num_hnodes, num_mem)))
+        self.w_hid_mem = np.mat(np.random.normal(mean, std_hnodes, (num_hnodes, num_mem)))
 
         #Output weights
         self.w_hid_out= np.mat(np.random.normal(mean, std_hnodes, (num_hnodes, num_output)))
