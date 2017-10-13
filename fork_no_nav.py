@@ -1,7 +1,7 @@
 import numpy as np, os, math
 import mod_hive_mem as mod, sys
 from random import randint
-
+#TODO Validation_set don't double
 
 class Tracker(): #Tracker
     def __init__(self, parameters):
@@ -45,8 +45,8 @@ class Parameters:
         self.num_evals = 5 #Number of different maps to run each individual before getting a fitness
 
         #NN specifics
-        self.num_hnodes = 50
-        self.memory_size = self.num_hnodes
+        self.num_hnodes = 25
+        self.num_mem = self.num_hnodes
 
 
         #SSNE stuff
@@ -60,11 +60,11 @@ class Parameters:
 
         #Task Params
         self.dim_x = 10; self.dim_y = 10; self.obs_dist = 1.0
-        self.num_timesteps = 20
-        self.num_food_items = 4
+        self.num_timesteps = 8
+        self.num_food_items = 3
         self.num_drones = 1
-        self.num_food_skus = 4
-        self.num_poison_skus = 2
+        self.num_food_skus = 2
+        self.num_poison_skus = 1
 
         #State representation
         self.angle_res = 45;
