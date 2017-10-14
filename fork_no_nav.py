@@ -1,7 +1,6 @@
 import numpy as np, os, math
 import mod_hive_mem as mod, sys
 from random import randint
-#TODO Validation_set don't double
 
 class Tracker(): #Tracker
     def __init__(self, parameters):
@@ -47,7 +46,7 @@ class Parameters:
         #NN specifics
         self.num_hnodes = 25
         self.num_mem = 10
-        self.grumb_topology = 2 #1: Default (hidden nodes cardinality attached to that of mem (No trascriber))
+        self.grumb_topology = 1 #1: Default (hidden nodes cardinality attached to that of mem (No trascriber))
                                 #2: Detached (Memory independent from hidden nodes (transcribing function))
 
 
@@ -84,8 +83,11 @@ class Parameters:
         if self.state_representation == 1: self.num_input = (360 / self.angle_res) * (self.num_food_skus * 3 + 2)
         if self.state_representation == 2: self.num_input = (360 / self.angle_res) * (self.num_food_skus * 4 + 3)
         if self.state_representation == 3: self.num_input = (self.num_food_skus * self.num_food_items* 3 + (self.num_drones-1) * 2)
+
         if self.action_representation == 1: self.num_output = self.num_food_skus + self.num_food_items
         if self.action_representation == 2: self.num_output = self.num_food_skus * self.num_food_items
+
+        if self.grumb_topology == 1: self.num_mem = self.num_hnodes
         self.save_foldername = 'R_Hive_mem/'
         if not os.path.exists(self.save_foldername):
             os.makedirs(self.save_foldername)

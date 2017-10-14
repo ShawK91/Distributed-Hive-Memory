@@ -9,7 +9,7 @@ from scipy.special import expit
 class Drone_Default:
     def __init__(self, drone_id, num_input, num_hnodes, num_mem, num_output):
         self_drone_id = drone_id;
-        self.num_input = num_input; self.num_output = num_output; self.num_hnodes = num_hnodes, num_mem = num_hnodes
+        self.num_input = num_input; self.num_output = num_output; self.num_hnodes = num_hnodes
 
         #Mean and std
         mean = 0; std_input = 1.0/(math.sqrt(num_input)); std_hnodes = 1.0/(math.sqrt(num_hnodes)); std_mem = 1.0/(math.sqrt(num_mem)); std_output = 1.0/(math.sqrt(num_output))
