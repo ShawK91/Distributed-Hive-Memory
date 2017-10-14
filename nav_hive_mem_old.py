@@ -2,6 +2,7 @@ import numpy as np, os, math
 import mod_hive_mem as mod, sys
 from random import randint
 
+
 class Tracker(): #Tracker
     def __init__(self, parameters):
         self.foldername = parameters.save_foldername
@@ -13,7 +14,7 @@ class Tracker(): #Tracker
 
     def add_fitness(self, fitness, generation):
         self.fitnesses.append(fitness)
-        if len(self.fitnesses) > 100:
+        if len(self.fitnesses) > 50:
             self.fitnesses.pop(0)
         self.avg_fitness = sum(self.fitnesses)/len(self.fitnesses)
         if generation % 10 == 0: #Save to csv file
@@ -23,7 +24,7 @@ class Tracker(): #Tracker
 
     def add_hof_fitness(self, hof_fitness, generation):
         self.hof_fitnesses.append(hof_fitness)
-        if len(self.hof_fitnesses) > 100:
+        if len(self.hof_fitnesses) > 50:
             self.hof_fitnesses.pop(0)
         self.hof_avg_fitness = sum(self.hof_fitnesses)/len(self.hof_fitnesses)
         if generation % 10 == 0: #Save to csv file
@@ -37,6 +38,7 @@ class Tracker(): #Tracker
 
 class Parameters:
     def __init__(self):
+
         self.population_size = 100
         self.load_seed = False
         self.total_gens = 100000
@@ -44,16 +46,15 @@ class Parameters:
         self.num_evals = 10 #Number of different maps to run each individual before getting a fitness
 
         #NN specifics
-        self.num_hnodes = 25
-        self.num_mem = 10
-        self.grumb_topology = 1 #1: Default (hidden nodes cardinality attached to that of mem (No trascriber))
-                                #2: Detached (Memory independent from hidden nodes (transcribing function))
+
+        self.num_hnodes = 75
+        self.memory_size = self.num_hnodes
 
 
         #SSNE stuff
-        self.elite_fraction = 0.07
+        self.elite_fraction = 0.04
         self.crossover_prob = 0.05
-        self.mutation_prob = 0.9
+        self.mutation_prob = 0.7
         self.extinction_prob = 0.004 #Probability of extinction event
         self.extinction_magnituide = 0.5 #Probabilty of extinction for each genome, given an extinction event
         self.weight_magnitude_limit = 10000000
@@ -61,17 +62,15 @@ class Parameters:
 
         #Task Params
         self.dim_x = 10; self.dim_y = 10; self.obs_dist = 1.0
-        self.num_timesteps = 10
+        self.num_timesteps = 15
         self.num_food_items = 4
-        self.num_drones = 1
-        self.num_food_skus = 2
-        self.num_poison_skus = 1
+        self.num_drones = 2
+        self.num_food_skus = 4
+        self.num_poison_skus = 2
 
         #State representation
         self.angle_res = 45;
-        self.action_representation = 2 #1: sku_id, item as sepaarate softmax
-                                       #2: All merged softmax
-        self.state_representation = 3 #1: Bracketed with [avg dist, cardinality, reward]
+        self.state_representation = 1 #1: Bracketed with [avg dist, cardinality, reward]
                                       #2: Bracketed with [avg dist, min_dist, cardinality, reward]
                                       #3: All drones and food listed (full observability) [dist, angle, reward]
 
@@ -83,15 +82,10 @@ class Parameters:
         if self.state_representation == 1: self.num_input = (360 / self.angle_res) * (self.num_food_skus * 3 + 2)
         if self.state_representation == 2: self.num_input = (360 / self.angle_res) * (self.num_food_skus * 4 + 3)
         if self.state_representation == 3: self.num_input = (self.num_food_skus * self.num_food_items* 3 + (self.num_drones-1) * 2)
-
-        if self.action_representation == 1: self.num_output = self.num_food_skus + self.num_food_items
-        if self.action_representation == 2: self.num_output = self.num_food_skus * self.num_food_items
-
-        if self.grumb_topology == 1: self.num_mem = self.num_hnodes
+        self.num_output = 2
         self.save_foldername = 'R_Hive_mem/'
         if not os.path.exists(self.save_foldername):
             os.makedirs(self.save_foldername)
-        self.optimal_score = self.num_food_items * (self.num_food_skus - self.num_poison_skus) - (1.0 * self.num_poison_skus/self.num_food_skus) * self.num_poison_skus
 
 class Task_Forage:
     def __init__(self, parameters):
@@ -114,7 +108,7 @@ class Task_Forage:
             self.all_hives.append(mod.Hive(parameters))
         if self.parameters.load_seed: self.all_hives[0] = self.load(self.parameters.save_foldername + 'champion')
         self.hive_pos = [[0.0,0.0] for drone in range (self.num_drones)] #Track each drone's position
-        self.hive_action = [[] for drone in range (self.num_drones)] #Track each drone's action set
+        self.hive_action = [[0.0, 0.0] for drone in range (self.num_drones)] #Track each drone's action set
 
     def reset_food_pos(self):
         start = 1.0;
@@ -220,7 +214,7 @@ class Task_Forage:
                 state[bracket][1] = len(temp_drone_dist_list[bracket])
                 if state[bracket][1] > 0:
                     state[bracket][0] = sum(temp_drone_dist_list[bracket])/len(temp_drone_dist_list[bracket])
-                else: state[bracket][0] = self.dim_x + self.dim_y
+                #else: state[bracket][0] = self.dim_x + self.dim_y
 
                 #Foods
                 for sku_id in range(self.num_foodskus):
@@ -228,7 +222,7 @@ class Task_Forage:
                     state[bracket][iter_pos + 1] = len(temp_food_dist_list[sku_id][bracket])
                     if state[bracket][iter_pos + 1] > 0:
                         state[bracket][iter_pos] = sum(temp_food_dist_list[sku_id][bracket])/len(temp_food_dist_list[sku_id][bracket])
-                    else: state[bracket][iter_pos] = self.dim_x + self.dim_y
+                    #else: state[bracket][iter_pos] = self.dim_x + self.dim_y
             state = state.flatten().tolist()
 
         elif self.parameters.state_representation == 2: #State rep 2
@@ -331,16 +325,13 @@ class Task_Forage:
 
     def move(self):
         for drone_id in range(self.num_drones): #Move drones
-            
-
-
-
-
-
-
-
             next_pos = [self.hive_pos[drone_id][0] + self.hive_action[drone_id][0], self.hive_pos[drone_id][1] + self.hive_action[drone_id][1]] #Compute next candidate position
 
+            # Implement bounds
+            if next_pos[0] >= self.dim_x-1: next_pos[0] = self.dim_x - 2
+            elif next_pos[0] < 1: next_pos[0] = 1
+            if next_pos[1] >= self.dim_y-1: next_pos[1] = self.dim_y - 2
+            elif next_pos[1] < 1: next_pos[1] = 1
 
             #Update
             self.hive_pos[drone_id][0] = next_pos[0]; self.hive_pos[drone_id][1] = next_pos[1]
@@ -354,31 +345,6 @@ class Task_Forage:
         self.reset_food_pos()
         self.reset_food_poison_info()
 
-    def compute_drone_next_action(self, action, drone_id):
-        if self.parameters.state_representation == 3:  # State rep 3
-            if self.parameters.action_representation == 1:
-                # Compute choice of food from softmax action
-                sku_softmax = action[0:self.num_foodskus]
-                item_softmax = action[self.num_foodskus:]
-
-                sku_choice = sku_softmax.index(max(sku_softmax))
-                item_choice = item_softmax.index(max(item_softmax))
-
-                # Compute the targeted food item and compute the action required to travel there (Lower level controller)
-                target = self.food_list[sku_choice][item_choice]
-                self.hive_action[drone_id] = [target[0] - self.hive_pos[drone_id][0],
-                                              target[1] - self.hive_pos[drone_id][1]]
-
-            elif self.parameters.action_representation == 2:
-                action_choice = action.index(max(action))
-
-                #Compute sku and item from serialized action_choice
-                sku_choice = action_choice/self.num_food_items; item_choice = action_choice % self.num_food_items
-
-                #Compute the targeted food item and compute the action required to travel there (Lower level controller)
-                target = self.food_list[sku_choice][item_choice]
-                self.hive_action[drone_id] = [target[0]-self.hive_pos[drone_id][0], target[1]-self.hive_pos[drone_id][1]]
-
     def run_trial(self, hive):
         self.soft_reset()
         hive.reset()
@@ -388,7 +354,7 @@ class Task_Forage:
             for drone_id in range(self.num_drones):
                 state = self.get_state(drone_id)
                 action = hive.forward(state, drone_id) #Run drones one step
-                self.compute_drone_next_action(action, drone_id)
+                self.hive_action[drone_id][0], self.hive_action[drone_id][1] = action[0], action[1]
             self.move() #Move the entire hive up one step
 
         #Compute reward
@@ -427,9 +393,9 @@ class Task_Forage:
 
         #Run simulation of champion individual (validation_score)
         validation_fitness = 0.0
-        for eval_id in range(self.parameters.num_evals):  # Multiple evals in different map inits to compute one fitness
+        for eval_id in range(self.parameters.num_evals * 2):  # Multiple evals in different map inits to compute one fitness
             self.hard_reset()
-            validation_fitness += self.run_trial(self.all_hives[champion_index])/(self.parameters.num_evals)
+            validation_fitness += self.run_trial(self.all_hives[champion_index])/(self.parameters.num_evals*2.0)
 
         #Save champion
         if gen % 100 == 0:
@@ -478,7 +444,7 @@ if __name__ == "__main__":
     sim_task = Task_Forage(parameters)
     for gen in range(1, parameters.total_gens):
         best_train_fitness, validation_fitness = sim_task.evolve(gen)
-        print 'Gen:', gen, 'Ep_best:', '%.2f' %best_train_fitness, ' Valid_Fit:', '%.2f' %validation_fitness, 'Cumul_valid:', '%.2f'%tracker.hof_avg_fitness, ' out of', '%.2f'%parameters.optimal_score
+        print 'Gen:', gen, 'Epoch_best:', best_train_fitness, ' Valid_Fitness:', validation_fitness
         tracker.add_fitness(best_train_fitness, gen)  # Add best global performance to tracker
         tracker.add_hof_fitness(validation_fitness, gen)  # Add validation global performance to tracker
 
