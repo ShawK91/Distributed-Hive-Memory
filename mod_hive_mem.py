@@ -81,6 +81,9 @@ class Drone_Default:
         layer_input = layer_input / np.sum(layer_input)
         return layer_input
 
+    def hardmax(self, layer_input):
+        return layer_input == np.max(layer_input)
+
     def graph_compute(self, input, memory): #Feedforwards the input and computes the forward pass of the network
         input = np.mat(input)
 
@@ -125,7 +128,8 @@ class Drone_Default:
 
         #Compute final output
         self.output = self.linear_combination(hidden_act, self.w_hid_out)
-        self.output = np.tanh(self.output)
+        #self.output = np.tanh(self.output)
+        self.output = self.hardmax(self.output)
 
         return np.array(self.output).tolist(), memory
 
@@ -210,6 +214,9 @@ class Drone_Detached:
         layer_input = layer_input / np.sum(layer_input)
         return layer_input
 
+    def hardmax(self, layer_input):
+        return layer_input == np.max(layer_input)
+
     def graph_compute(self, input, memory): #Feedforwards the input and computes the forward pass of the network
         input = np.mat(input)
 
@@ -254,7 +261,8 @@ class Drone_Detached:
 
         #Compute final output
         self.output = self.linear_combination(hidden_act, self.w_hid_out)
-        self.output = np.tanh(self.output)
+        #self.output = np.tanh(self.output)
+        self.output = self.hardmax(self.output)
 
         return np.array(self.output).tolist(), memory
 
