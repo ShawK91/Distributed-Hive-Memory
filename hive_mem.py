@@ -44,7 +44,7 @@ class Tracker(): #Tracker
 class Parameters:
     def __init__(self):
         self.population_size = 100
-        self.load_seed = 1
+        self.load_seed = 0
         self.total_gens = 100000
         self.is_hive_mem = True #Is Hive memory connected/active? If not, no communication between the agents
         self.num_evals = 10 #Number of different maps to run each individual before getting a fitness
@@ -54,7 +54,7 @@ class Parameters:
         self.num_mem = 10
         self.grumb_topology = 1 #1: Default (hidden nodes cardinality attached to that of mem (No trascriber))
                                 #2: Detached (Memory independent from hidden nodes (transcribing function))
-
+        self.output_activation = 'hardmax' #tanh or hardmax
 
         #SSNE stuff
         self.elite_fraction = 0.07
@@ -479,7 +479,7 @@ class Task_Forage:
 if __name__ == "__main__":
     parameters = Parameters()  # Create the Parameters class
     tracker = Tracker(parameters)  # Initiate tracker
-    print 'Hive Memory Training '
+    print 'Hive Memory Training with', parameters.num_input, 'inputs,', parameters.num_output, 'outputs and', parameters.output_activation if parameters.output_activation == 'tanh' or parameters.output_activation == 'hardmax' else 'No output activation'
     sim_task = Task_Forage(parameters)
     if parameters.load_seed: gen_start = int(np.loadtxt(parameters.save_foldername + 'gen_tag'))
     else: gen_start = 1

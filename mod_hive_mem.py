@@ -7,8 +7,8 @@ from scipy.special import expit
 
 
 class Drone_Default:
-    def __init__(self, drone_id, num_input, num_hnodes, num_mem, num_output):
-        self_drone_id = drone_id;
+    def __init__(self, params, drone_id, num_input, num_hnodes, num_mem, num_output):
+        self_drone_id = drone_id; self.params = params
         self.num_input = num_input; self.num_output = num_output; self.num_hnodes = num_hnodes
 
         #Mean and std
@@ -128,8 +128,8 @@ class Drone_Default:
 
         #Compute final output
         self.output = self.linear_combination(hidden_act, self.w_hid_out)
-        #self.output = np.tanh(self.output)
-        self.output = self.hardmax(self.output)
+        if self.params.output_activation == 'tanh': self.output = np.tanh(self.output)
+        elif self.params.output_activation == 'hardmax': self.output = self.hardmax(self.output)
 
         return np.array(self.output).tolist(), memory
 
@@ -137,8 +137,8 @@ class Drone_Default:
         self.output = np.mat(np.zeros((1,self.num_output)))
 
 class Drone_Detached:
-    def __init__(self, drone_id, num_input, num_hnodes, num_mem, num_output):
-        self_drone_id = drone_id;
+    def __init__(self, params, drone_id, num_input, num_hnodes, num_mem, num_output):
+        self_drone_id = drone_id; self.params.params
         self.num_input = num_input; self.num_output = num_output; self.num_hnodes = num_hnodes; self.num_mem = num_mem
 
         #Mean and std
@@ -261,8 +261,9 @@ class Drone_Detached:
 
         #Compute final output
         self.output = self.linear_combination(hidden_act, self.w_hid_out)
-        #self.output = np.tanh(self.output)
-        self.output = self.hardmax(self.output)
+        if self.params.output_activation == 'tanh': self.output = np.tanh(self.output)
+        elif self.params.output_activation == 'hardmax': self.output = self.hardmax(self.output)
+
 
         return np.array(self.output).tolist(), memory
 
@@ -282,10 +283,10 @@ class Hive:
         for drone_id in range(self.params.num_drones):
             if params.grumb_topology == 1:
                 self.all_drones.append(
-                    Drone_Default(drone_id, params.num_input, params.num_hnodes, params.num_mem, params.num_output))
+                    Drone_Default(params, drone_id, params.num_input, params.num_hnodes, params.num_mem, params.num_output))
             if params.grumb_topology == 2:
                 self.all_drones.append(
-                    Drone_Detached(drone_id, params.num_input, params.num_hnodes, params.num_mem, params.num_output))
+                    Drone_Detached(params, drone_id, params.num_input, params.num_hnodes, params.num_mem, params.num_output))
 
     def reset(self):
         self.memory = np.mat(np.zeros((1,self.params.num_mem)))
