@@ -1,6 +1,7 @@
 import numpy as np, os, math
 import mod_hive_mem as mod, sys
 from random import randint
+#TODO Tracker loading seed backtrack to erase multiple y for time.
 
 class Tracker(): #Tracker
     def __init__(self, parameters):
@@ -10,6 +11,11 @@ class Tracker(): #Tracker
         if not os.path.exists(self.foldername):
             os.makedirs(self.foldername)
         self.file_save = 'Hive_Mem.csv'
+
+        if parameters.load_seed:
+            self.tr_avg_fit = np.loadtxt(parameters.save_foldername + 'champ_train' + self.file_save, delimiter=',').tolist()
+            self.hof_tr_avg_fit = np.loadtxt(parameters.save_foldername + 'champ_valid' + self.file_save, delimiter=',').tolist()
+
 
     def add_fitness(self, fitness, generation):
         self.fitnesses.append(fitness)
@@ -38,7 +44,7 @@ class Tracker(): #Tracker
 class Parameters:
     def __init__(self):
         self.population_size = 100
-        self.load_seed = False
+        self.load_seed = 1
         self.total_gens = 100000
         self.is_hive_mem = True #Is Hive memory connected/active? If not, no communication between the agents
         self.num_evals = 10 #Number of different maps to run each individual before getting a fitness
@@ -474,9 +480,10 @@ if __name__ == "__main__":
     parameters = Parameters()  # Create the Parameters class
     tracker = Tracker(parameters)  # Initiate tracker
     print 'Hive Memory Training '
-
     sim_task = Task_Forage(parameters)
-    for gen in range(1, parameters.total_gens):
+    if parameters.load_seed: gen_start = int(np.loadtxt(parameters.save_foldername + 'gen_tag'))
+    else: gen_start = 1
+    for gen in range(gen_start, parameters.total_gens):
         best_train_fitness, validation_fitness = sim_task.evolve(gen)
         print 'Gen:', gen, 'Ep_best:', '%.2f' %best_train_fitness, ' Valid_Fit:', '%.2f' %validation_fitness, 'Cumul_valid:', '%.2f'%tracker.hof_avg_fitness, ' out of', '%.2f'%parameters.optimal_score
         tracker.add_fitness(best_train_fitness, gen)  # Add best global performance to tracker
