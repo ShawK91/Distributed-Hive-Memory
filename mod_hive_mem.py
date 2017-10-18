@@ -138,7 +138,7 @@ class Drone_Default:
 
 class Drone_Detached:
     def __init__(self, params, drone_id, num_input, num_hnodes, num_mem, num_output):
-        self_drone_id = drone_id; self.params.params
+        self_drone_id = drone_id; self.params = params
         self.num_input = num_input; self.num_output = num_output; self.num_hnodes = num_hnodes; self.num_mem = num_mem
 
         #Mean and std

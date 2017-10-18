@@ -52,7 +52,7 @@ class Parameters:
         #NN specifics
         self.num_hnodes = 25
         self.num_mem = 10
-        self.grumb_topology = 1 #1: Default (hidden nodes cardinality attached to that of mem (No trascriber))
+        self.grumb_topology = 2 #1: Default (hidden nodes cardinality attached to that of mem (No trascriber))
                                 #2: Detached (Memory independent from hidden nodes (transcribing function))
         self.output_activation = 'hardmax' #tanh or hardmax
 
