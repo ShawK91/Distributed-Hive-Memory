@@ -1,4 +1,4 @@
-from random import randint
+from random import randint, fastrand
 import math
 import  cPickle
 import random
@@ -270,7 +270,6 @@ class Drone_Detached:
     def reset(self):
         self.output = np.mat(np.zeros((1,self.num_output)))
 
-
 class Hive:
     def __init__(self, params, mean = 0, std = 1):
         self.params = params;
@@ -296,7 +295,6 @@ class Hive:
     def forward(self, input, drone_id):
         output, self.memory = self.all_drones[drone_id].graph_compute(input, self.memory)
         return output[0]
-
 
 class Fast_SSNE:
     def __init__(self, parameters):
@@ -356,6 +354,20 @@ class Fast_SSNE:
                     W2[keys[tensor_choice]][:, ind_cr] = W1[keys[tensor_choice]][:, ind_cr]
                     #W2[keys[tensor_choice]][ind_cr, :] = W1[keys[tensor_choice]][ind_cr, :]
 
+    def hive_crossover(self, hive_1, hive_2): #Transfer drone between two hives
+        for drone_1, drone_2 in zip(hive_1.all_drones, hive_2.all_drones):
+            if random.random() < 0.2:
+                receiver_choice = random.random()  # Choose which gene to receive the perturbation
+                if receiver_choice < 0.5: drone_1.param_dict = drone_2.param_dict
+                else: drone_2.param_dict = drone_1.param_dict
+
+    def homogenize(self, hive):
+        alpha_drone_index = random.choice([i for i in range(len(hive.all_drones))])
+        for drone_id, drone in enumerate(hive.all_drones):
+            if drone_id != alpha_drone_index:
+                if random.random() < 0.2:
+                    drone.param_dict = hive.all_drones[alpha_drone_index].param_dict
+
     def mutate_inplace(self, hive):
         mut_strength = 0.1
         num_mutation_frac = 0.1
@@ -377,8 +389,8 @@ class Fast_SSNE:
 
                     num_mutations = randint(1, math.ceil(num_mutation_frac * W[key].size))  # Number of mutation instances
                     for _ in range(num_mutations):
-                        ind_dim1 = randint(0, randint(0, W[key].shape[0] - 1))
-                        ind_dim2 = randint(0, randint(0, W[key].shape[-1] - 1))
+                        ind_dim1 = fastrand.pcg32bounded(W[key].shape[0])
+                        ind_dim2 = fastrand.pcg32bounded(W[key].shape[-1])
                         random_num = random.random()
 
                         if random_num < super_mut_prob:  # Super Mutation probability
@@ -455,13 +467,13 @@ class Fast_SSNE:
 
         # Crossover for selected offsprings
         for i, j in zip(offsprings[0::2], offsprings[1::2]):
-            if random.random() < self.parameters.crossover_prob: self.crossover_inplace(all_hives[i], all_hives[j])
+            if random.random() < self.parameters.hive_crossover_prob: self.crossover_inplace(all_hives[i], all_hives[j])
 
-        # Mutate all genes in the population except the new elitists
+        # Mutate all genes in the population except the new elitists plus homozenize
         for i in range(self.population_size):
             if i not in new_elitists:  # Spare the new elitists
-                if random.random() < self.parameters.mutation_prob:
-                    self.mutate_inplace(all_hives[i])
+                if random.random() < self.parameters.homogenize_prob: self.homogenize(all_hives[i])
+                if random.random() < self.parameters.mutation_prob: self.mutate_inplace(all_hives[i])
 
 
 def unpickle(filename):

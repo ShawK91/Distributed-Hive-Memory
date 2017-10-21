@@ -50,25 +50,27 @@ class Parameters:
         self.num_evals = 10 #Number of different maps to run each individual before getting a fitness
 
         #NN specifics
-        self.num_hnodes = 25
+        self.num_hnodes = 10
         self.num_mem = 10
-        self.grumb_topology = 2 #1: Default (hidden nodes cardinality attached to that of mem (No trascriber))
+        self.grumb_topology = 1 #1: Default (hidden nodes cardinality attached to that of mem (No trascriber))
                                 #2: Detached (Memory independent from hidden nodes (transcribing function))
-        self.output_activation = 'hardmax' #tanh or hardmax
+        self.output_activation = 'tanh' #tanh or hardmax
 
         #SSNE stuff
-        self.elite_fraction = 0.07
+        self.elite_fraction = 0.05
         self.crossover_prob = 0.05
         self.mutation_prob = 0.9
+        self.homogenize_prob = 0.01
+        self.hive_crossover_prob = 0.1
         self.extinction_prob = 0.004 #Probability of extinction event
         self.extinction_magnituide = 0.5 #Probabilty of extinction for each genome, given an extinction event
         self.weight_magnitude_limit = 10000000
         self.mut_distribution = 3 #1-Gaussian, 2-Laplace, 3-Uniform, ELSE-all 1s
 
         #Task Params
-        self.num_timesteps = 10
+        self.num_timesteps = 15
         self.num_food_items = 4
-        self.num_drones = 1
+        self.num_drones = 2
         self.num_food_skus = 4
         self.num_poison_skus = 2
 
