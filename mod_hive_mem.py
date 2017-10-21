@@ -1,4 +1,5 @@
-from random import randint, fastrand
+from random import randint
+import fastrand
 import math
 import  cPickle
 import random
@@ -316,7 +317,7 @@ class Fast_SSNE:
 
         offsprings = list(set(offsprings))  # Find unique offsprings
         if len(offsprings) % 2 != 0:  # Number of offsprings should be even
-            offsprings.append(offsprings[randint(0, len(offsprings) - 1)])
+            offsprings.append(offsprings[fastrand.pcg32bounded(len(offsprings))])
         return offsprings
 
     def list_argsort(self, seq):
@@ -341,16 +342,16 @@ class Fast_SSNE:
             if num_variables != len(W2): print 'Warning: Genes for crossover might be incompatible'
 
             # Crossover opertation [Indexed by column, not rows]
-            num_cross_overs = randint(1, num_variables * 2)  # Lower bounded on full swaps
+            num_cross_overs = fastrand.pcg32bounded(num_variables * 2)  # Lower bounded on full swaps
             for i in range(num_cross_overs):
-                tensor_choice = randint(0, num_variables - 1)  # Choose which tensor to perturb
+                tensor_choice = fastrand.pcg32bounded(num_variables)  # Choose which tensor to perturb
                 receiver_choice = random.random()  # Choose which gene to receive the perturbation
                 if receiver_choice < 0.5:
-                    ind_cr = randint(0, W1[keys[tensor_choice]].shape[-1] - 1)  #
+                    ind_cr = fastrand.pcg32bounded(W1[keys[tensor_choice]].shape[-1])  #
                     W1[keys[tensor_choice]][:, ind_cr] = W2[keys[tensor_choice]][:, ind_cr]
                     #W1[keys[tensor_choice]][ind_cr, :] = W2[keys[tensor_choice]][ind_cr, :]
                 else:
-                    ind_cr = randint(0, W2[keys[tensor_choice]].shape[-1] - 1)  #
+                    ind_cr = fastrand.pcg32bounded(W2[keys[tensor_choice]].shape[-1])  #
                     W2[keys[tensor_choice]][:, ind_cr] = W1[keys[tensor_choice]][:, ind_cr]
                     #W2[keys[tensor_choice]][ind_cr, :] = W1[keys[tensor_choice]][ind_cr, :]
 
@@ -387,7 +388,7 @@ class Fast_SSNE:
             for ssne_prob, key in zip(ssne_probabilities, keys): #For each structure
                 if random.random()<ssne_prob:
 
-                    num_mutations = randint(1, math.ceil(num_mutation_frac * W[key].size))  # Number of mutation instances
+                    num_mutations = fastrand.pcg32bounded(int(math.ceil(num_mutation_frac * W[key].size)))  # Number of mutation instances
                     for _ in range(num_mutations):
                         ind_dim1 = fastrand.pcg32bounded(W[key].shape[0])
                         ind_dim2 = fastrand.pcg32bounded(W[key].shape[-1])
@@ -457,7 +458,7 @@ class Fast_SSNE:
 
         # Crossover for unselected genes with 100 percent probability
         if len(unselects) % 2 != 0:  # Number of unselects left should be even
-            unselects.append(unselects[randint(0, len(unselects) - 1)])
+            unselects.append(unselects[fastrand.pcg32bounded(len(unselects))])
         for i, j in zip(unselects[0::2], unselects[1::2]):
             off_i = random.choice(new_elitists);
             off_j = random.choice(offsprings)
