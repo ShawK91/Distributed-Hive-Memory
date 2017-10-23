@@ -45,6 +45,7 @@ class Parameters:
     def __init__(self):
         self.population_size = 100
         self.load_seed = 0
+        self.load_colony = 0
         self.total_gens = 100000
         self.is_hive_mem = True #Is Hive memory connected/active? If not, no communication between the agents
         self.num_evals = 10 #Number of different maps to run each individual before getting a fitness
@@ -94,10 +95,13 @@ class Task_Forage:
         self.food_poison_info = [False for _ in range(self.num_food_skus)]  # Status of whether food is poisonous
 
         #Initialize hives
-        self.all_hives = []
-        for hive in range(parameters.population_size):
-            self.all_hives.append(mod.Hive(parameters))
-        if self.parameters.load_seed: self.all_hives[0] = self.load(self.parameters.save_foldername + 'champion')
+        if self.parameters.load_colony: self.all_hives = self.load(self.parameters.save_foldername + 'colony')
+        else:
+            self.all_hives = []
+            for hive in range(parameters.population_size): self.all_hives.append(mod.Hive(parameters))
+            if self.parameters.load_seed: self.all_hives[0] = self.load(self.parameters.save_foldername + 'champion')
+
+
         self.hive_action = [[] for drone in range (self.num_drones)] #Track each drone's action set
         self.hive_local_reward = [[0.0 for sku_id in range (self.num_food_skus)] for drone in range (self.num_drones)]
 
@@ -176,10 +180,11 @@ class Task_Forage:
             validation_fitness += self.run_trial(self.all_hives[champion_index])/(self.parameters.num_evals)
 
         #Save champion
-        if gen % 100 == 0:
+        if gen % 10 == 0:
             ig_folder = self.parameters.save_foldername
             if not os.path.exists(ig_folder): os.makedirs(ig_folder)
             self.save(self.all_hives[champion_index], self.parameters.save_foldername + 'champion') #Save champion
+            self.save(self.all_hives, self.parameters.save_foldername + 'colony')  # Save entire colony of hives (all population)
             np.savetxt(self.parameters.save_foldername + 'gen_tag', np.array([gen + 1]), fmt='%.3f', delimiter=',')
 
         #SSNE Epoch: Selection and Mutation/Crossover step
