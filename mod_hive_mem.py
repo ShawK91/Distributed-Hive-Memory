@@ -85,7 +85,7 @@ class Drone_Default:
     def hardmax(self, layer_input):
         return layer_input == np.max(layer_input)
 
-    def graph_compute(self, input, memory): #Feedforwards the input and computes the forward pass of the network
+    def expanded_graph_compute(self, input, memory): #Feedforwards the input and computes the forward pass of the network
         input = np.mat(input)
 
         #Input gate
@@ -123,6 +123,37 @@ class Drone_Default:
         ig_3 = self.linear_combination(memory, self.w_mem_writegate)
         write_gate_out = ig_1 + ig_2 + ig_3 + self.w_writegate_bias
         write_gate_out = self.fast_sigmoid(write_gate_out)
+
+        #Write to memory Cell - Update memory
+        memory += np.multiply(write_gate_out, np.tanh(hidden_act))
+
+        #Compute final output
+        self.output = self.linear_combination(hidden_act, self.w_hid_out)
+        if self.params.output_activation == 'tanh': self.output = np.tanh(self.output)
+        elif self.params.output_activation == 'hardmax': self.output = self.hardmax(self.output)
+
+        return np.array(self.output).tolist(), memory
+
+    def graph_compute(self, input, memory): #Feedforwards the input and computes the forward pass of the network
+        input = np.mat(input)
+
+        #Input gate
+        input_gate_out = self.fast_sigmoid(self.linear_combination(input, self.w_inpgate) + self.linear_combination(self.output, self.w_rec_inpgate) + self.linear_combination(memory, self.w_mem_inpgate) + self.w_input_gate_bias)
+
+        #Input processing
+        block_input_out = self.fast_sigmoid(self.linear_combination(input, self.w_inp) + self.linear_combination(self.output, self.w_rec_inp) + self.w_block_input_bias)
+
+        #Gate the Block Input and compute the final input out
+        input_out = np.multiply(input_gate_out, block_input_out)
+
+        #Read Gate
+        read_gate_out = self.fast_sigmoid(self.linear_combination(input, self.w_readgate) + self.linear_combination(self.output, self.w_rec_readgate) + self.linear_combination(memory, self.w_mem_readgate) + self.w_readgate_bias)
+
+        #Compute hidden activation - processing hidden output for this iteration of net run
+        hidden_act = np.multiply(read_gate_out, memory) + input_out
+
+        #Write gate (memory cell)
+        write_gate_out = self.fast_sigmoid(self.linear_combination(input, self.w_writegate)+ self.linear_combination(self.output, self.w_rec_writegate) + self.linear_combination(memory, self.w_mem_writegate) + self.w_writegate_bias)
 
         #Write to memory Cell - Update memory
         memory += np.multiply(write_gate_out, np.tanh(hidden_act))
@@ -218,7 +249,7 @@ class Drone_Detached:
     def hardmax(self, layer_input):
         return layer_input == np.max(layer_input)
 
-    def graph_compute(self, input, memory): #Feedforwards the input and computes the forward pass of the network
+    def expanded_graph_compute(self, input, memory): #Feedforwards the input and computes the forward pass of the network
         input = np.mat(input)
 
         #Input gate
@@ -256,6 +287,41 @@ class Drone_Detached:
         ig_3 = self.linear_combination(memory, self.w_mem_writegate)
         write_gate_out = ig_1 + ig_2 + ig_3 + self.w_writegate_bias
         write_gate_out = self.fast_sigmoid(write_gate_out)
+
+        #Write to memory Cell - Update memory
+        memory += np.multiply(write_gate_out, np.tanh(self.linear_combination(hidden_act, self.w_hid_mem)))
+
+        #Compute final output
+        self.output = self.linear_combination(hidden_act, self.w_hid_out)
+        if self.params.output_activation == 'tanh': self.output = np.tanh(self.output)
+        elif self.params.output_activation == 'hardmax': self.output = self.hardmax(self.output)
+
+
+        return np.array(self.output).tolist(), memory
+
+    def graph_compute(self, input, memory): #Feedforwards the input and computes the forward pass of the network
+        input = np.mat(input)
+
+        #Input gate
+        input_gate_out = self.fast_sigmoid(self.linear_combination(input, self.w_inpgate) + self.linear_combination(self.output, self.w_rec_inpgate) + self.linear_combination(memory, self.w_mem_inpgate) + self.w_input_gate_bias)
+
+        #Input processing
+        block_input_out = np.tanh(self.linear_combination(input, self.w_inp) + self.linear_combination(self.output, self.w_rec_inp) + self.w_block_input_bias)
+
+        #Gate the Block Input and compute the final input out
+        input_out = np.multiply(input_gate_out, block_input_out)
+
+        #Read Gate
+        read_gate_out = self.fast_sigmoid(self.linear_combination(input, self.w_readgate) + self.linear_combination(self.output, self.w_rec_readgate) + self.linear_combination(memory, self.w_mem_readgate) + self.w_readgate_bias)
+
+        #Memory Output
+        memory_output = np.multiply(read_gate_out, memory)
+
+        #Compute hidden activation - processing hidden output for this iteration of net run
+        hidden_act = np.tanh(self.linear_combination(memory_output, self.w_mem_hid)) + input_out
+
+        #Write gate (memory cell)
+        write_gate_out = self.fast_sigmoid(self.linear_combination(input, self.w_writegate) + self.linear_combination(self.output, self.w_rec_writegate) + self.linear_combination(memory, self.w_mem_writegate) + self.w_writegate_bias)
 
         #Write to memory Cell - Update memory
         memory += np.multiply(write_gate_out, np.tanh(self.linear_combination(hidden_act, self.w_hid_mem)))
@@ -356,18 +422,24 @@ class Fast_SSNE:
                     #W2[keys[tensor_choice]][ind_cr, :] = W1[keys[tensor_choice]][ind_cr, :]
 
     def hive_crossover(self, hive_1, hive_2): #Transfer drone between two hives
-        for drone_1, drone_2 in zip(hive_1.all_drones, hive_2.all_drones):
-            if random.random() < 0.2:
-                receiver_choice = random.random()  # Choose which gene to receive the perturbation
-                if receiver_choice < 0.5: drone_1.param_dict = drone_2.param_dict
-                else: drone_2.param_dict = drone_1.param_dict
+        num_transfer = fastrand.pcg32bounded(self.parameters.num_drones)+1
+        for _ in range(num_transfer):
+            source_id = fastrand.pcg32bounded(self.parameters.num_drones)
+            receiver_id = fastrand.pcg32bounded(self.parameters.num_drones)
+            if fastrand.pcg32bounded(2) == 0:
+                for key in hive_1.all_drones[receiver_id].param_dict.keys():
+                    hive_2.all_drones[receiver_id].param_dict[key][:] = hive_1.all_drones[source_id].param_dict[key]
+            else:
+                for key in hive_2.all_drones[receiver_id].param_dict.keys():
+                    hive_1.all_drones[receiver_id].param_dict[key][:] = hive_2.all_drones[source_id].param_dict[key]
 
     def homogenize(self, hive):
         alpha_drone_index = random.choice([i for i in range(len(hive.all_drones))])
         for drone_id, drone in enumerate(hive.all_drones):
             if drone_id != alpha_drone_index:
-                if random.random() < 0.2:
-                    drone.param_dict = hive.all_drones[alpha_drone_index].param_dict
+                if random.random() < 0.5:
+                    for key in hive.all_drones[alpha_drone_index].param_dict.keys():
+                        drone.param_dict[key][:] = hive.all_drones[alpha_drone_index].param_dict[key]
 
     def mutate_inplace(self, hive):
         mut_strength = 0.1
@@ -468,7 +540,8 @@ class Fast_SSNE:
 
         # Crossover for selected offsprings
         for i, j in zip(offsprings[0::2], offsprings[1::2]):
-            if random.random() < self.parameters.hive_crossover_prob: self.crossover_inplace(all_hives[i], all_hives[j])
+            if random.random() < self.parameters.crossover_prob: self.crossover_inplace(all_hives[i], all_hives[j])
+            if random.random() < self.parameters.hive_crossover_prob: self.hive_crossover(all_hives[i], all_hives[j])
 
         # Mutate all genes in the population except the new elitists plus homozenize
         for i in range(self.population_size):

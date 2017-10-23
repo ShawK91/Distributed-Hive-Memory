@@ -58,10 +58,10 @@ class Parameters:
 
         #SSNE stuff
         self.elite_fraction = 0.05
-        self.crossover_prob = 0.05
-        self.mutation_prob = 0.9
-        self.homogenize_prob = 0.01
-        self.hive_crossover_prob = 0.1
+        self.crossover_prob = 0.0
+        self.mutation_prob = 0.5
+        self.homogenize_prob = 0.0
+        self.hive_crossover_prob = 0.5
         self.extinction_prob = 0.004 #Probability of extinction event
         self.extinction_magnituide = 0.5 #Probabilty of extinction for each genome, given an extinction event
         self.weight_magnitude_limit = 10000000
