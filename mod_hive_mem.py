@@ -63,7 +63,6 @@ class Drone_Default:
                             'w_readgate_bias': self.w_readgate_bias,
                            'w_writegate_bias': self.w_writegate_bias}
 
-
     def linear_combination(self, w_matrix, layer_input): #Linear combine weights with inputs
         return np.dot(w_matrix, layer_input) #Linear combination of weights and inputs
 
@@ -163,7 +162,7 @@ class Drone_Default:
         if self.params.output_activation == 'tanh': self.output = np.tanh(self.output)
         elif self.params.output_activation == 'hardmax': self.output = self.hardmax(self.output)
 
-        return np.array(self.output).tolist(), memory
+        return np.array(self.output).tolist()
 
     def reset(self):
         self.output = np.mat(np.zeros((1,self.num_output)))
@@ -360,7 +359,7 @@ class Hive:
             drone.reset()
 
     def forward(self, input, drone_id):
-        output, self.memory = self.all_drones[drone_id].graph_compute(input, self.memory)
+        output = self.all_drones[drone_id].graph_compute(input, self.memory)
         return output[0]
 
 class Fast_SSNE:
