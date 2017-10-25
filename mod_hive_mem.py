@@ -336,6 +336,69 @@ class Drone_Detached:
     def reset(self):
         self.output = np.mat(np.zeros((1,self.num_output)))
 
+class Drone_FF:
+    def __init__(self, params, drone_id, num_input, num_hnodes, num_mem, num_output):
+        self_drone_id = drone_id; self.params = params
+        self.num_input = num_input; self.num_output = num_output; self.num_hnodes = num_hnodes
+
+        # Mean and std
+        mean = 0; std_input = 1.0 / (math.sqrt(num_input)); std_hnodes = 1.0 / (math.sqrt(num_hnodes));
+
+        #Block Input
+        self.w_inp = np.mat(np.random.normal(mean, std_input, (num_input, num_hnodes)))
+
+        #Output weights
+        self.w_hid_out= np.mat(np.random.normal(mean, std_hnodes, (num_hnodes, num_output)))
+
+        #Biases
+        self.w_inp_bias = np.mat(np.random.normal(mean, 0.1, (1, num_hnodes)))
+        self.w_hid_out_bias = np.mat(np.random.normal(mean, 0.1, (1, num_output)))
+
+        self.param_dict = {'w_inp': self.w_inp,
+                           'w_hid_out': self.w_hid_out,
+                           'w_inp_bias': self.w_inp_bias,
+                           'w_hid_out_bias': self.w_hid_out_bias}
+
+
+    def linear_combination(self, w_matrix, layer_input): #Linear combine weights with inputs
+        return np.dot(w_matrix, layer_input) #Linear combination of weights and inputs
+
+    def relu(self, layer_input):    #Relu transformation function
+        for x in range(len(layer_input)):
+            if layer_input[x] < 0:
+                layer_input[x] = 0
+        return layer_input
+
+    def fast_sigmoid(self, layer_input): #Sigmoid transform
+        layer_input = expit(layer_input)
+        return layer_input
+
+    def softmax(self, layer_input): #Softmax transform
+        layer_input = np.exp(layer_input)
+        layer_input = layer_input / np.sum(layer_input)
+        return layer_input
+
+    def hardmax(self, layer_input):
+        return layer_input == np.max(layer_input)
+
+    def graph_compute(self, input, _): #Feedforwards the input and computes the forward pass of the network
+        input = np.mat(input)
+
+        #Input processing
+        hidden_act = self.fast_sigmoid(self.linear_combination(input, self.w_inp) + self.w_inp_bias)
+
+        #Compute final output
+        self.output = self.linear_combination(hidden_act, self.w_hid_out) + self.w_hid_out_bias
+        if self.params.output_activation == 'tanh': self.output = np.tanh(self.output)
+        elif self.params.output_activation == 'hardmax': self.output = self.hardmax(self.output)
+
+        return np.array(self.output).tolist()
+
+    def reset(self):
+        return
+
+
+
 class Hive:
     def __init__(self, params, mean = 0, std = 1):
         self.params = params;
@@ -352,6 +415,9 @@ class Hive:
             if params.grumb_topology == 2:
                 self.all_drones.append(
                     Drone_Detached(params, drone_id, params.num_input, params.num_hnodes, params.num_mem, params.num_output))
+            if params.grumb_topology == 3:
+                self.all_drones.append(
+                    Drone_FF(params, drone_id, params.num_input, params.num_hnodes, params.num_mem, params.num_output))
 
     def reset(self):
         self.memory = np.mat(np.zeros((1,self.params.num_mem)))
@@ -439,6 +505,14 @@ class Fast_SSNE:
                 if random.random() < 0.5:
                     for key in hive.all_drones[alpha_drone_index].param_dict.keys():
                         drone.param_dict[key][:] = hive.all_drones[alpha_drone_index].param_dict[key]
+
+    def homogenize_gates(self, hive):
+        alpha_drone_index = random.choice([i for i in range(len(hive.all_drones))])
+        for drone_id, drone in enumerate(hive.all_drones):
+            if drone_id != alpha_drone_index:
+                gate_keys = ['w_inpgate', 'w_rec_inpgate', 'w_mem_inpgate', 'w_readgate', 'w_rec_readgate', 'w_mem_readgate', 'w_writegate', 'w_rec_writegate', 'w_mem_writegate', 'w_input_gate_bias', 'w_readgate_bias', 'w_writegate_bias']
+                for key in gate_keys:
+                    drone.param_dict[key][:] = hive.all_drones[alpha_drone_index].param_dict[key]
 
     def mutate_inplace(self, hive):
         mut_strength = 0.1
@@ -546,6 +620,7 @@ class Fast_SSNE:
         for i in range(self.population_size):
             if i not in new_elitists:  # Spare the new elitists
                 if random.random() < self.parameters.homogenize_prob: self.homogenize(all_hives[i])
+                if random.random() < self.parameters.homogenize_gates_prob: self.homogenize_gates(all_hives[i])
                 if random.random() < self.parameters.mutation_prob: self.mutate_inplace(all_hives[i])
 
 
