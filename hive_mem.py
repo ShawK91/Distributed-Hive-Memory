@@ -72,12 +72,12 @@ class Parameters:
         self.mut_distribution = 3 #1-Gaussian, 2-Laplace, 3-Uniform, ELSE-all 1s
 
         #Task Params
-        self.num_timesteps = 25
+        self.num_timesteps = 20
         self.time_delay = [0,0]
         self.num_food_items = 3
         self.num_drones = 1
-        self.num_food_skus = 8
-        self.num_poison_skus = [4,4] #Breaks down if all are poisonous
+        self.num_food_skus = 2
+        self.num_poison_skus = [0,1] #Breaks down if all are poisonous
 
         #Dependents
         self.num_output = self.num_food_skus
@@ -87,13 +87,17 @@ class Parameters:
         if not os.path.exists(self.save_foldername): os.makedirs(self.save_foldername)
 
         #Compute expected score for reasonable behavior
-        expected_optimal = 0.0
+        self.expected_optimal = 0.0; self.expected_min = 0.0; self.expected_max = 0.0
         for num_poison in range(self.num_poison_skus[0], self.num_poison_skus[1]+1):
             ig_min = -1.0 * self.num_food_items * (num_poison)
             ig_max = 1.0 * self.num_food_items * (self.num_food_skus - num_poison)
+            self.expected_min += ig_min; self.expected_max += ig_max
             score = self.num_food_items * (self.num_food_skus - num_poison) - num_poison
-            expected_optimal += (score - ig_min) / (ig_max - ig_min)
-        self.expected_optimal = expected_optimal / ((self.num_poison_skus[1] + 1.0) - self.num_poison_skus[0])
+            self.expected_optimal += (score - ig_min) / (ig_max - ig_min)
+        #Normalize by number of np.p choices
+        self.expected_optimal /= ((self.num_poison_skus[1] + 1.0) - self.num_poison_skus[0])
+        self.expected_max /= ((self.num_poison_skus[1] + 1.0) - self.num_poison_skus[0])
+        self.expected_min /= ((self.num_poison_skus[1] + 1.0) - self.num_poison_skus[0])
 
 class Task_Forage:
     def __init__(self, parameters):
@@ -252,14 +256,13 @@ class Task_Forage:
 if __name__ == "__main__":
     parameters = Parameters()  # Create the Parameters class
     tracker = Tracker(parameters)  # Initiate tracker
-    print 'Hive Memory Training with', parameters.num_input, 'inputs,', parameters.num_hnodes, 'hidden_nodes', parameters.num_output, 'outputs and', parameters.output_activation if parameters.output_activation == 'tanh' or parameters.output_activation == 'hardmax' else 'No output activation'
-
+    print 'Hive Memory Training with', parameters.num_input, 'inputs,', parameters.num_hnodes, 'hidden_nodes', parameters.num_output, 'outputs and', parameters.output_activation if parameters.output_activation == 'tanh' or parameters.output_activation == 'hardmax' else 'No output activation', 'Exp_opt:', '%.2f'%parameters.expected_optimal, 'Exp_min:', parameters.expected_min,'Exp_max:', parameters.expected_max
     sim_task = Task_Forage(parameters)
     if parameters.load_seed: gen_start = int(np.loadtxt(parameters.save_foldername + 'gen_tag'))
     else: gen_start = 1
     for gen in range(gen_start, parameters.total_gens):
         best_train_fitness, validation_fitness = sim_task.evolve(gen)
-        print 'Gen:', gen, 'Ep_best:', '%.2f' %best_train_fitness, ' Valid_Fit:', '%.2f' %validation_fitness, 'Cumul_valid:', '%.2f'%tracker.hof_avg_fitness, ' out of', '%.2f'%parameters.expected_optimal
+        print 'Gen:', gen, 'Ep_best:', '%.2f' %best_train_fitness, ' Valid_Fit:', '%.2f' %validation_fitness, 'Cumul_valid:', '%.2f'%tracker.hof_avg_fitness, 'translated to', '%.2f'%(tracker.hof_avg_fitness * (parameters.expected_max-parameters.expected_min)+parameters.expected_min), 'out of', '%.2f'%(parameters.expected_optimal * (parameters.expected_max-parameters.expected_min)+parameters.expected_min)
         tracker.add_fitness(best_train_fitness, gen)  # Add best global performance to tracker
         tracker.add_hof_fitness(validation_fitness, gen)  # Add validation global performance to tracker
 
