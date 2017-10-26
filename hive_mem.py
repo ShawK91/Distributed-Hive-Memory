@@ -2,7 +2,7 @@ import numpy as np, os, math
 import mod_hive_mem as mod, sys
 from random import randint
 import fastrand
-#TODO Tracker loading seed backtrack to erase multiple y for time.
+#TODO Tracker loading seed backtrack to erase multiple y for time
 
 class Tracker(): #Tracker
     def __init__(self, parameters):

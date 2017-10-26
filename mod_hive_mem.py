@@ -1,4 +1,4 @@
-from random import randint
+
 import fastrand
 import math
 import  cPickle
