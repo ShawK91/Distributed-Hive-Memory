@@ -209,6 +209,24 @@ class Drone_Detached:
                            'w_mem_hid': self.w_mem_hid,
                            'w_hid_mem': self.w_hid_mem}
 
+    def linear_combination(self, w_matrix, layer_input): #Linear combine weights with inputs
+        return np.dot(w_matrix, layer_input) #Linear combination of weights and inputs
+
+    def relu(self, layer_input):    #Relu transformation function
+        for x in range(len(layer_input)):
+            if layer_input[x] < 0:
+                layer_input[x] = 0
+        return layer_input
+
+    def fast_sigmoid(self, layer_input): #Sigmoid transform
+        layer_input = expit(layer_input)
+        return layer_input
+
+    def softmax(self, layer_input): #Softmax transform
+        layer_input = np.exp(layer_input)
+        layer_input = layer_input / np.sum(layer_input)
+        return layer_input
+
     def hardmax(self, layer_input):
         return layer_input == np.max(layer_input)
 
@@ -266,31 +284,31 @@ class Drone_Detached:
         input = np.mat(input)
 
         #Input gate
-        input_gate_out = expit(np.dot(input, self.w_inpgate) + np.dot(self.output, self.w_rec_inpgate) + np.dot(memory, self.w_mem_inpgate) + self.w_input_gate_bias)
+        input_gate_out = self.fast_sigmoid(self.linear_combination(input, self.w_inpgate) + self.linear_combination(self.output, self.w_rec_inpgate) + self.linear_combination(memory, self.w_mem_inpgate) + self.w_input_gate_bias)
 
         #Input processing
-        block_input_out = np.tanh(np.dot(input, self.w_inp) + np.dot(self.output, self.w_rec_inp) + self.w_block_input_bias)
+        block_input_out = np.tanh(self.linear_combination(input, self.w_inp) + self.linear_combination(self.output, self.w_rec_inp) + self.w_block_input_bias)
 
         #Gate the Block Input and compute the final input out
         input_out = np.multiply(input_gate_out, block_input_out)
 
         #Read Gate
-        read_gate_out = expit(np.dot(input, self.w_readgate) + np.dot(self.output, self.w_rec_readgate) + np.dot(memory, self.w_mem_readgate) + self.w_readgate_bias)
+        read_gate_out = self.fast_sigmoid(self.linear_combination(input, self.w_readgate) + self.linear_combination(self.output, self.w_rec_readgate) + self.linear_combination(memory, self.w_mem_readgate) + self.w_readgate_bias)
 
         #Memory Output
         memory_output = np.multiply(read_gate_out, memory)
 
         #Compute hidden activation - processing hidden output for this iteration of net run
-        hidden_act = np.tanh(np.dot(memory_output, self.w_mem_hid)) + input_out
+        hidden_act = np.tanh(self.linear_combination(memory_output, self.w_mem_hid)) + input_out
 
         #Write gate (memory cell)
-        write_gate_out = expit(np.dot(input, self.w_writegate) + np.dot(self.output, self.w_rec_writegate) + np.dot(memory, self.w_mem_writegate) + self.w_writegate_bias)
+        write_gate_out = self.fast_sigmoid(self.linear_combination(input, self.w_writegate) + self.linear_combination(self.output, self.w_rec_writegate) + self.linear_combination(memory, self.w_mem_writegate) + self.w_writegate_bias)
 
         #Write to memory Cell - Update memory
-        memory += np.multiply(write_gate_out, np.tanh(np.dot(hidden_act, self.w_hid_mem)))
+        memory += np.multiply(write_gate_out, np.tanh(self.linear_combination(hidden_act, self.w_hid_mem)))
 
         #Compute final output
-        self.output = np.dot(hidden_act, self.w_hid_out)
+        self.output = self.linear_combination(hidden_act, self.w_hid_out)
         if self.params.output_activation == 'tanh': self.output = np.tanh(self.output)
         elif self.params.output_activation == 'hardmax': self.output = self.hardmax(self.output)
 
