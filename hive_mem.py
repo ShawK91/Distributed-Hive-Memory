@@ -72,12 +72,12 @@ class Parameters:
         self.mut_distribution = 3 #1-Gaussian, 2-Laplace, 3-Uniform, ELSE-all 1s
 
         #Task Params
-        self.num_timesteps = 8
+        self.num_timesteps = 25
         self.time_delay = [0,0]
         self.num_food_items = 3
         self.num_drones = 1
         self.num_food_skus = 8
-        self.num_poison_skus = [5,5] #Breaks down if all are poisonous
+        self.num_poison_skus = [4,4] #Breaks down if all are poisonous
 
         #Dependents
         self.num_output = self.num_food_skus
@@ -85,8 +85,15 @@ class Parameters:
         if self.grumb_topology == 1: self.num_mem = self.num_hnodes
         self.save_foldername = 'R_Hive_mem/'
         if not os.path.exists(self.save_foldername): os.makedirs(self.save_foldername)
-        #self.optimal_score = self.num_food_items * (self.num_food_skus - self.num_poison_skus) - (1.0 * self.num_poison_skus/self.num_food_skus) * self.num_poison_skus
-        #self.optimal_score = self.num_food_items * (self.num_food_skus - self.num_poison_skus) - self.num_poison_skus
+
+        #Compute expected score for reasonable behavior
+        expected_optimal = 0.0
+        for num_poison in range(self.num_poison_skus[0], self.num_poison_skus[1]+1):
+            ig_min = -1.0 * self.num_food_items * (num_poison)
+            ig_max = 1.0 * self.num_food_items * (self.num_food_skus - num_poison)
+            score = self.num_food_items * (self.num_food_skus - num_poison) - num_poison
+            expected_optimal += (score - ig_min) / (ig_max - ig_min)
+        self.expected_optimal = expected_optimal / ((self.num_poison_skus[1] + 1.0) - self.num_poison_skus[0])
 
 class Task_Forage:
     def __init__(self, parameters):
@@ -127,15 +134,9 @@ class Task_Forage:
             self.food_poison_info[item] = True
 
         #Compute normalized score distribution
-        if num_poisonous == 0:
-            min = 1.0 * self.num_food_items
-        else:
-            min = 1.0 * self.parameters.num_food_items * (self.num_food_skus - 2 * num_poisonous)
-        #max = 1.0 * self.parameters.num_food_items * (self.num_food_skus - num_poisonous)
-        optimal = 1.0 * self.parameters.num_food_items * (self.num_food_skus - num_poisonous) - num_poisonous
-
-        print min, optimal, num_poisonous
-        return min, optimal
+        min = -1.0 * self.parameters.num_food_items * (num_poisonous)
+        max = 1.0 * self.parameters.num_food_items * (self.num_food_skus - num_poisonous)
+        return min, max
 
 
     def reset_hive_local_reward(self):
@@ -153,7 +154,6 @@ class Task_Forage:
                     if self.food_poison_info[action]: self.hive_local_reward[drone_id][action] -= 1.0
                     else: self.hive_local_reward[drone_id][action] += 1.0
             else: self.hive_delay[drone_id] -= 1
-
 
     def run_trial(self, hive):
         self.reset_food_status()
@@ -191,11 +191,11 @@ class Task_Forage:
         #Evaluation loop
         all_fitness = [[] for _ in range(self.parameters.population_size)]
         for eval_id in range(self.parameters.num_evals): #Multiple evals in different map inits to compute one fitness
-            min, optimal = self.reset_food_poison_info()
+            minimum, maximum = self.reset_food_poison_info()
 
             for hive_id, hive in enumerate(self.all_hives):
                 fitness = self.run_trial(hive)
-                all_fitness[hive_id].append((fitness-min)/(optimal-min))
+                all_fitness[hive_id].append((fitness-minimum)/(maximum-minimum))
 
         fitnesses = [sum(all_fitness[i])/self.parameters.num_evals for i in range(self.parameters.population_size)] #Average the finesses
 
@@ -206,8 +206,8 @@ class Task_Forage:
         #Run simulation of champion individual (validation_score)
         validation_fitness = 0.0
         for eval_id in range(self.parameters.num_evals):  # Multiple evals in different map inits to compute one fitness
-            min, optimal = self.reset_food_poison_info()
-            validation_fitness += (self.run_trial(self.all_hives[champion_index])-min) / ((optimal-min)*self.parameters.num_evals)
+            minimum, maximum = self.reset_food_poison_info()
+            validation_fitness += (self.run_trial(self.all_hives[champion_index])-minimum) / ((maximum-minimum)*self.parameters.num_evals)
 
         #Save champion
         if gen % 100 == 0:
@@ -259,7 +259,7 @@ if __name__ == "__main__":
     else: gen_start = 1
     for gen in range(gen_start, parameters.total_gens):
         best_train_fitness, validation_fitness = sim_task.evolve(gen)
-        print 'Gen:', gen, 'Ep_best:', '%.2f' %best_train_fitness, ' Valid_Fit:', '%.2f' %validation_fitness, 'Cumul_valid:', '%.2f'%tracker.hof_avg_fitness#, ' out of', '%.2f'%parameters.optimal_score
+        print 'Gen:', gen, 'Ep_best:', '%.2f' %best_train_fitness, ' Valid_Fit:', '%.2f' %validation_fitness, 'Cumul_valid:', '%.2f'%tracker.hof_avg_fitness, ' out of', '%.2f'%parameters.expected_optimal
         tracker.add_fitness(best_train_fitness, gen)  # Add best global performance to tracker
         tracker.add_hof_fitness(validation_fitness, gen)  # Add validation global performance to tracker
 
