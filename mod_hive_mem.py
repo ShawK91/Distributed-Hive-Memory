@@ -383,7 +383,7 @@ class Drone_FF:
 
 class Hive:
     def __init__(self, params, mean = 0, std = 1):
-        self.params = params;
+        self.params = params
 
         #Hive Memory
         self.memory = np.mat(np.zeros((1, self.params.num_mem)))
