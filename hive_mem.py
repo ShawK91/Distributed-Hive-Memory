@@ -1,7 +1,6 @@
 import numpy as np, os, math
 import mod_hive_mem as mod, sys
 from random import randint
-import fastrand
 
 class Tracker(): #Tracker
     def __init__(self, parameters, vars_string, project_string):
@@ -18,7 +17,7 @@ class Tracker(): #Tracker
         #Constrain size of convolution
         if len(self.all_tracker[0][0]) > 100: #Assume all variable are updated uniformly
             for var in self.all_tracker:
-                var[0].pop()
+                var[0].pop(0)
 
         #Update new average
         for var in self.all_tracker:
@@ -36,7 +35,7 @@ class Parameters:
         self.load_colony = 0
         self.total_gens = 50000
         self.is_hive_mem = True #Is Hive memory connected/active? If not, no communication between the agents
-        self.num_evals = 10 #Number of different maps to run each individual before getting a fitness
+        self.num_evals = 5 #Number of different maps to run each individual before getting a fitness
 
         #NN specifics
         self.num_hnodes = 10
@@ -59,10 +58,10 @@ class Parameters:
         self.mut_distribution = 3 #1-Gaussian, 2-Laplace, 3-Uniform, ELSE-all 1s
 
         #Task Params
-        self.num_timesteps = 15
+        self.num_timesteps = 10
         self.time_delay = [0,0]
         self.num_food_items = 3
-        self.num_drones = 2
+        self.num_drones = 1
         self.num_food_skus = 4
         self.num_poison_skus = [2,2] #Breaks down if all are poisonous
 
@@ -129,7 +128,6 @@ class Task_Forage:
         min = -1.0 * self.parameters.num_food_items * (num_poisonous)
         max = 1.0 * self.parameters.num_food_items * (self.num_food_skus - num_poisonous)
         return min, max
-
 
     def reset_hive_local_reward(self):
         self.hive_local_reward = [[0.0 for sku_id in range(self.num_food_skus)] for drone in range(self.num_drones)]
@@ -241,7 +239,6 @@ class Task_Forage:
         for row in grid:
             print row
         print
-
 
 if __name__ == "__main__":
     parameters = Parameters()  # Create the Parameters class
