@@ -2,59 +2,46 @@ import numpy as np, os, math
 import mod_hive_mem as mod, sys
 from random import randint
 import fastrand
-#TODO Tracker loading seed backtrack to erase multiple y for time
 
 class Tracker(): #Tracker
-    def __init__(self, parameters):
+    def __init__(self, parameters, vars_string, project_string):
+        self.vars_string = vars_string; self.project_string = project_string
         self.foldername = parameters.save_foldername
-        self.fitnesses = []; self.avg_fitness = 0; self.tr_avg_fit = []
-        self.hof_fitnesses = []; self.hof_avg_fitness = 0; self.hof_tr_avg_fit = []
+        self.all_tracker = [[[],0.0,[]] for _ in vars_string] #[Id of var tracked][fitnesses, avg_fitness, csv_fitnesses]
         if not os.path.exists(self.foldername):
             os.makedirs(self.foldername)
-        self.file_save = 'Hive_Mem.csv'
 
-        if parameters.load_seed:
-            self.tr_avg_fit = np.loadtxt(parameters.save_foldername + 'champ_train' + self.file_save, delimiter=',').tolist()
-            self.hof_tr_avg_fit = np.loadtxt(parameters.save_foldername + 'champ_valid' + self.file_save, delimiter=',').tolist()
+    def update(self, updates, generation):
+        for update, var in zip(updates, self.all_tracker):
+            var[0].append(update)
 
+        #Constrain size of convolution
+        if len(self.all_tracker[0][0]) > 100: #Assume all variable are updated uniformly
+            for var in self.all_tracker:
+                var[0].pop()
 
-    def add_fitness(self, fitness, generation):
-        self.fitnesses.append(fitness)
-        if len(self.fitnesses) > 100:
-            self.fitnesses.pop(0)
-        self.avg_fitness = sum(self.fitnesses)/len(self.fitnesses)
-        if generation % 10 == 0: #Save to csv file
-            filename = self.foldername + 'champ_train' + self.file_save
-            self.tr_avg_fit.append(np.array([generation, self.avg_fitness]))
-            np.savetxt(filename, np.array(self.tr_avg_fit), fmt='%.3f', delimiter=',')
+        #Update new average
+        for var in self.all_tracker:
+            var[1] = sum(var[0])/float(len(var[0]))
 
-    def add_hof_fitness(self, hof_fitness, generation):
-        self.hof_fitnesses.append(hof_fitness)
-        if len(self.hof_fitnesses) > 100:
-            self.hof_fitnesses.pop(0)
-        self.hof_avg_fitness = sum(self.hof_fitnesses)/len(self.hof_fitnesses)
-        if generation % 10 == 0: #Save to csv file
-            filename = self.foldername + 'champ_valid' + self.file_save
-            self.hof_tr_avg_fit.append(np.array([generation, self.hof_avg_fitness]))
-            np.savetxt(filename, np.array(self.hof_tr_avg_fit), fmt='%.3f', delimiter=',')
-
-    def save_csv(self, generation, filename):
-        self.tr_avg_fit.append(np.array([generation, self.avg_fitness]))
-        np.savetxt(filename, np.array(self.tr_avg_fit), fmt='%.3f', delimiter=',')
+        if generation % 10 == 0:  # Save to csv file
+            for i, var in enumerate(self.all_tracker):
+                var[2].append(np.array([generation, var[1]]))
+                filename = self.foldername + self.vars_string[i] + self.project_string
+                np.savetxt(filename, np.array(var[2]), fmt='%.3f', delimiter=',')
 
 class Parameters:
     def __init__(self):
         self.population_size = 100
-        self.load_seed = 0
         self.load_colony = 0
-        self.total_gens = 100000
+        self.total_gens = 50000
         self.is_hive_mem = True #Is Hive memory connected/active? If not, no communication between the agents
         self.num_evals = 10 #Number of different maps to run each individual before getting a fitness
 
         #NN specifics
         self.num_hnodes = 10
         self.num_mem = 10
-        self.grumb_topology = 3 #1: Default (hidden nodes cardinality attached to that of mem (No trascriber))
+        self.grumb_topology = 1 #1: Default (hidden nodes cardinality attached to that of mem (No trascriber))
                                 #2: Detached (Memory independent from hidden nodes (transcribing function))
                                 #3: FF (Normal Feed-Forward Net)
         self.output_activation = 'tanh' #tanh or hardmax
@@ -64,7 +51,7 @@ class Parameters:
         self.crossover_prob = 0.05
         self.mutation_prob = 0.9
         self.homogenize_prob = 0.005
-        self.homogenize_gates_prob = 0.0
+        self.homogenize_gates_prob = 0.01
         self.hive_crossover_prob = 0.03
         self.extinction_prob = 0.004 #Probability of extinction event
         self.extinction_magnituide = 0.5 #Probabilty of extinction for each genome, given an extinction event
@@ -72,12 +59,12 @@ class Parameters:
         self.mut_distribution = 3 #1-Gaussian, 2-Laplace, 3-Uniform, ELSE-all 1s
 
         #Task Params
-        self.num_timesteps = 20
+        self.num_timesteps = 15
         self.time_delay = [0,0]
         self.num_food_items = 3
-        self.num_drones = 1
-        self.num_food_skus = 2
-        self.num_poison_skus = [0,1] #Breaks down if all are poisonous
+        self.num_drones = 2
+        self.num_food_skus = 4
+        self.num_poison_skus = [2,2] #Breaks down if all are poisonous
 
         #Dependents
         self.num_output = self.num_food_skus
@@ -98,6 +85,7 @@ class Parameters:
         self.expected_optimal /= ((self.num_poison_skus[1] + 1.0) - self.num_poison_skus[0])
         self.expected_max /= ((self.num_poison_skus[1] + 1.0) - self.num_poison_skus[0])
         self.expected_min /= ((self.num_poison_skus[1] + 1.0) - self.num_poison_skus[0])
+        self.expected_optimal_translated = (self.expected_optimal * (self.expected_max-self.expected_min)+self.expected_min)
 
 class Task_Forage:
     def __init__(self, parameters):
@@ -115,7 +103,7 @@ class Task_Forage:
         else:
             self.all_hives = []
             for hive in range(parameters.population_size): self.all_hives.append(mod.Hive(parameters))
-            if self.parameters.load_seed: self.all_hives[0] = self.load(self.parameters.save_foldername + 'champion')
+            if self.parameters.load_colony: self.all_hives[0] = self.load(self.parameters.save_foldername + 'champion')
 
         self.hive_action = [[] for drone in range (self.num_drones)] #Track each drone's action set
         self.hive_local_reward = [[0.0 for sku_id in range (self.num_food_skus)] for drone in range (self.num_drones)]
@@ -190,7 +178,7 @@ class Task_Forage:
     def load(self, filename):
         return mod.unpickle(filename)
 
-    def evolve(self, gen):
+    def evolve(self, gen, tracker):
 
         #Evaluation loop
         all_fitness = [[] for _ in range(self.parameters.population_size)]
@@ -219,7 +207,9 @@ class Task_Forage:
             if not os.path.exists(ig_folder): os.makedirs(ig_folder)
             self.save(self.all_hives[champion_index], self.parameters.save_foldername + 'champion') #Save champion
             self.save(self.all_hives, self.parameters.save_foldername + 'colony')  # Save entire colony of hives (all population)
+            self.save(tracker, self.parameters.save_foldername + 'tracker') #Save the tracker file
             np.savetxt(self.parameters.save_foldername + 'gen_tag', np.array([gen + 1]), fmt='%.3f', delimiter=',')
+
 
         #SSNE Epoch: Selection and Mutation/Crossover step
         self.ssne.epoch(self.all_hives, fitnesses)
@@ -255,16 +245,19 @@ class Task_Forage:
 
 if __name__ == "__main__":
     parameters = Parameters()  # Create the Parameters class
-    tracker = Tracker(parameters)  # Initiate tracker
+    if parameters.load_colony:
+        gen_start = int(np.loadtxt(parameters.save_foldername + 'gen_tag'))
+        tracker = mod.unpickle(parameters.save_foldername + 'tracker')
+    else:
+        tracker = Tracker(parameters, ['best_train', 'valid', 'valid_translated'], '_hive_mem.csv')  # Initiate tracker
+        gen_start = 1
     print 'Hive Memory Training with', parameters.num_input, 'inputs,', parameters.num_hnodes, 'hidden_nodes', parameters.num_output, 'outputs and', parameters.output_activation if parameters.output_activation == 'tanh' or parameters.output_activation == 'hardmax' else 'No output activation', 'Exp_opt:', '%.2f'%parameters.expected_optimal, 'Exp_min:', parameters.expected_min,'Exp_max:', parameters.expected_max
     sim_task = Task_Forage(parameters)
-    if parameters.load_seed: gen_start = int(np.loadtxt(parameters.save_foldername + 'gen_tag'))
-    else: gen_start = 1
     for gen in range(gen_start, parameters.total_gens):
-        best_train_fitness, validation_fitness = sim_task.evolve(gen)
-        print 'Gen:', gen, 'Ep_best:', '%.2f' %best_train_fitness, ' Valid_Fit:', '%.2f' %validation_fitness, 'Cumul_valid:', '%.2f'%tracker.hof_avg_fitness, 'translated to', '%.2f'%(tracker.hof_avg_fitness * (parameters.expected_max-parameters.expected_min)+parameters.expected_min), 'out of', '%.2f'%(parameters.expected_optimal * (parameters.expected_max-parameters.expected_min)+parameters.expected_min)
-        tracker.add_fitness(best_train_fitness, gen)  # Add best global performance to tracker
-        tracker.add_hof_fitness(validation_fitness, gen)  # Add validation global performance to tracker
+        best_train_fitness, validation_fitness = sim_task.evolve(gen, tracker)
+        print 'Gen:', gen, 'Ep_best:', '%.2f' %best_train_fitness, ' Valid_Fit:', '%.2f' %validation_fitness, 'Cumul_valid:', '%.2f'%tracker.all_tracker[1][1], 'translated to', '%.2f'%tracker.all_tracker[2][1], 'out of', '%.2f'%parameters.expected_optimal_translated
+        tracker.update([best_train_fitness, validation_fitness, (validation_fitness * (parameters.expected_max-parameters.expected_min)+parameters.expected_min)], gen)
+
 
 
 

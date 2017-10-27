@@ -380,7 +380,6 @@ class Drone_FF:
         return
 
 
-
 class Hive:
     def __init__(self, params, mean = 0, std = 1):
         self.params = params
@@ -489,6 +488,7 @@ class Fast_SSNE:
                         drone.param_dict[key][:] = hive.all_drones[alpha_drone_index].param_dict[key]
 
     def homogenize_gates(self, hive):
+        if self.parameters.grumb_topology == 3: return #Skip for FF
         alpha_drone_index = random.choice([i for i in range(len(hive.all_drones))])
         for drone_id, drone in enumerate(hive.all_drones):
             if drone_id != alpha_drone_index:
