@@ -5,6 +5,7 @@ import  cPickle
 import random
 import numpy as np
 from scipy.special import expit
+#from scipy.sparse import random as scipy_rand
 
 
 class Drone_Default:
@@ -511,7 +512,6 @@ class Fast_SSNE:
             num_structures = len(keys)
             ssne_probabilities = np.random.uniform(0,1,num_structures)*2
 
-
             for ssne_prob, key in zip(ssne_probabilities, keys): #For each structure
                 if random.random()<ssne_prob:
 
@@ -535,6 +535,46 @@ class Fast_SSNE:
                         # Regularization hard limit
                         W[key][ind_dim1, ind_dim2] = self.regularize_weight(
                             W[key][ind_dim1, ind_dim2])
+
+    def trial_mutate_inplace(self, hive):
+        mut_strength = 0.1
+        num_mutation_frac = 0.1
+        super_mut_prob = 0.05
+
+        for drone in hive.all_drones:
+            # References to the variable keys
+            keys = list(drone.param_dict.keys())
+            W = drone.param_dict
+            num_structures = len(keys)
+            ssne_probabilities = np.random.uniform(0,1,num_structures)*2
+
+            for ssne_prob, key in zip(ssne_probabilities, keys): #For each structure
+                if random.random()<ssne_prob:
+
+                    mut_matrix = scipy_rand(W[key].shape[0], W[key].shape[1], density=num_mutation_frac, data_rvs=np.random.randn).A * mut_strength
+                    W[key] += np.multiply(mut_matrix, W[key])
+
+
+                    # num_mutations = fastrand.pcg32bounded(int(math.ceil(num_mutation_frac * W[key].size)))  # Number of mutation instances
+                    # for _ in range(num_mutations):
+                    #     ind_dim1 = fastrand.pcg32bounded(W[key].shape[0])
+                    #     ind_dim2 = fastrand.pcg32bounded(W[key].shape[-1])
+                    #     random_num = random.random()
+                    #
+                    #     if random_num < super_mut_prob:  # Super Mutation probability
+                    #         W[key][ind_dim1, ind_dim2] += random.gauss(0, super_mut_strength *
+                    #                                                                       W[key][
+                    #                                                                           ind_dim1, ind_dim2])
+                    #     elif random_num < reset_prob:  # Reset probability
+                    #         W[key][ind_dim1, ind_dim2] = random.gauss(0, 1)
+                    #
+                    #     else:  # mutauion even normal
+                    #         W[key][ind_dim1, ind_dim2] += random.gauss(0, mut_strength *W[key][
+                    #                                                                           ind_dim1, ind_dim2])
+                    #
+                    #     # Regularization hard limit
+                    #     W[key][ind_dim1, ind_dim2] = self.regularize_weight(
+                    #         W[key][ind_dim1, ind_dim2])
 
     def copy_individual(self, master, replacee):  # Replace the replacee individual with master
         for master_drone, replacee_drone in zip(master.all_drones, replacee.all_drones):
