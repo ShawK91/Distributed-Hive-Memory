@@ -282,20 +282,20 @@ class Drone_Detached:
 
         return np.array(self.output).tolist(), memory
 
-    def graph_compute(self, input, memory): #Feedforwards the input and computes the forward pass of the network
-        input = np.mat(input)
+    def graph_compute(self, input_v, memory): #Feedforwards the input and computes the forward pass of the network
+        input_v = np.mat(input_v)
 
         #Input gate
-        input_gate_out = self.fast_sigmoid(self.linear_combination(input, self.w_inpgate) + self.linear_combination(self.output, self.w_rec_inpgate) + self.linear_combination(memory, self.w_mem_inpgate) + self.w_input_gate_bias)
+        input_gate_out = self.fast_sigmoid(self.linear_combination(input_v, self.w_inpgate) + self.linear_combination(self.output, self.w_rec_inpgate) + self.linear_combination(memory, self.w_mem_inpgate) + self.w_input_gate_bias)
 
         #Input processing
-        block_input_out = np.tanh(self.linear_combination(input, self.w_inp) + self.linear_combination(self.output, self.w_rec_inp) + self.w_block_input_bias)
+        block_input_out = np.tanh(self.linear_combination(input_v, self.w_inp) + self.linear_combination(self.output, self.w_rec_inp) + self.w_block_input_bias)
 
         #Gate the Block Input and compute the final input out
         input_out = np.multiply(input_gate_out, block_input_out)
 
         #Read Gate
-        read_gate_out = self.fast_sigmoid(self.linear_combination(input, self.w_readgate) + self.linear_combination(self.output, self.w_rec_readgate) + self.linear_combination(memory, self.w_mem_readgate) + self.w_readgate_bias)
+        read_gate_out = self.fast_sigmoid(self.linear_combination(input_v, self.w_readgate) + self.linear_combination(self.output, self.w_rec_readgate) + self.linear_combination(memory, self.w_mem_readgate) + self.w_readgate_bias)
 
         #Memory Output
         memory_output = np.multiply(read_gate_out, memory)
@@ -304,7 +304,7 @@ class Drone_Detached:
         hidden_act = np.tanh(self.linear_combination(memory_output, self.w_mem_hid)) + input_out
 
         #Write gate (memory cell)
-        write_gate_out = self.fast_sigmoid(self.linear_combination(input, self.w_writegate) + self.linear_combination(self.output, self.w_rec_writegate) + self.linear_combination(memory, self.w_mem_writegate) + self.w_writegate_bias)
+        write_gate_out = self.fast_sigmoid(self.linear_combination(input_v, self.w_writegate) + self.linear_combination(self.output, self.w_rec_writegate) + self.linear_combination(memory, self.w_mem_writegate) + self.w_writegate_bias)
 
         #Write to memory Cell - Update memory
         memory += np.multiply(write_gate_out, np.tanh(self.linear_combination(hidden_act, self.w_hid_mem)))
