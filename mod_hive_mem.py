@@ -1,10 +1,11 @@
-from random import randint
+
 import fastrand
 import math
 import  cPickle
 import random
 import numpy as np
 from scipy.special import expit
+#from scipy.sparse import random as scipy_rand
 
 
 class Drone_Default:
@@ -63,24 +64,6 @@ class Drone_Default:
                             'w_readgate_bias': self.w_readgate_bias,
                            'w_writegate_bias': self.w_writegate_bias}
 
-    def linear_combination(self, w_matrix, layer_input): #Linear combine weights with inputs
-        return np.dot(w_matrix, layer_input) #Linear combination of weights and inputs
-
-    def relu(self, layer_input):    #Relu transformation function
-        for x in range(len(layer_input)):
-            if layer_input[x] < 0:
-                layer_input[x] = 0
-        return layer_input
-
-    def fast_sigmoid(self, layer_input): #Sigmoid transform
-        layer_input = expit(layer_input)
-        return layer_input
-
-    def softmax(self, layer_input): #Softmax transform
-        layer_input = np.exp(layer_input)
-        layer_input = layer_input / np.sum(layer_input)
-        return layer_input
-
     def hardmax(self, layer_input):
         return layer_input == np.max(layer_input)
 
@@ -137,28 +120,28 @@ class Drone_Default:
         input = np.mat(input)
 
         #Input gate
-        input_gate_out = self.fast_sigmoid(self.linear_combination(input, self.w_inpgate) + self.linear_combination(self.output, self.w_rec_inpgate) + self.linear_combination(memory, self.w_mem_inpgate) + self.w_input_gate_bias)
+        input_gate_out = expit(np.dot(input, self.w_inpgate) + np.dot(self.output, self.w_rec_inpgate) + np.dot(memory, self.w_mem_inpgate) + self.w_input_gate_bias)
 
         #Input processing
-        block_input_out = self.fast_sigmoid(self.linear_combination(input, self.w_inp) + self.linear_combination(self.output, self.w_rec_inp) + self.w_block_input_bias)
+        block_input_out = expit(np.dot(input, self.w_inp) + np.dot(self.output, self.w_rec_inp) + self.w_block_input_bias)
 
         #Gate the Block Input and compute the final input out
         input_out = np.multiply(input_gate_out, block_input_out)
 
         #Read Gate
-        read_gate_out = self.fast_sigmoid(self.linear_combination(input, self.w_readgate) + self.linear_combination(self.output, self.w_rec_readgate) + self.linear_combination(memory, self.w_mem_readgate) + self.w_readgate_bias)
+        read_gate_out = expit(np.dot(input, self.w_readgate) + np.dot(self.output, self.w_rec_readgate) + np.dot(memory, self.w_mem_readgate) + self.w_readgate_bias)
 
         #Compute hidden activation - processing hidden output for this iteration of net run
         hidden_act = np.multiply(read_gate_out, memory) + input_out
 
         #Write gate (memory cell)
-        write_gate_out = self.fast_sigmoid(self.linear_combination(input, self.w_writegate)+ self.linear_combination(self.output, self.w_rec_writegate) + self.linear_combination(memory, self.w_mem_writegate) + self.w_writegate_bias)
+        write_gate_out = expit(np.dot(input, self.w_writegate)+ np.dot(self.output, self.w_rec_writegate) + np.dot(memory, self.w_mem_writegate) + self.w_writegate_bias)
 
         #Write to memory Cell - Update memory
         memory += np.multiply(write_gate_out, np.tanh(hidden_act))
 
         #Compute final output
-        self.output = self.linear_combination(hidden_act, self.w_hid_out)
+        self.output = np.dot(hidden_act, self.w_hid_out)
         if self.params.output_activation == 'tanh': self.output = np.tanh(self.output)
         elif self.params.output_activation == 'hardmax': self.output = self.hardmax(self.output)
 
@@ -398,10 +381,9 @@ class Drone_FF:
         return
 
 
-
 class Hive:
     def __init__(self, params, mean = 0, std = 1):
-        self.params = params;
+        self.params = params
 
         #Hive Memory
         self.memory = np.mat(np.zeros((1, self.params.num_mem)))
@@ -507,6 +489,7 @@ class Fast_SSNE:
                         drone.param_dict[key][:] = hive.all_drones[alpha_drone_index].param_dict[key]
 
     def homogenize_gates(self, hive):
+        if self.parameters.grumb_topology == 3: return #Skip for FF
         alpha_drone_index = random.choice([i for i in range(len(hive.all_drones))])
         for drone_id, drone in enumerate(hive.all_drones):
             if drone_id != alpha_drone_index:
@@ -528,7 +511,6 @@ class Fast_SSNE:
             W = drone.param_dict
             num_structures = len(keys)
             ssne_probabilities = np.random.uniform(0,1,num_structures)*2
-
 
             for ssne_prob, key in zip(ssne_probabilities, keys): #For each structure
                 if random.random()<ssne_prob:
@@ -553,6 +535,46 @@ class Fast_SSNE:
                         # Regularization hard limit
                         W[key][ind_dim1, ind_dim2] = self.regularize_weight(
                             W[key][ind_dim1, ind_dim2])
+
+    def trial_mutate_inplace(self, hive):
+        mut_strength = 0.1
+        num_mutation_frac = 0.1
+        super_mut_prob = 0.05
+
+        for drone in hive.all_drones:
+            # References to the variable keys
+            keys = list(drone.param_dict.keys())
+            W = drone.param_dict
+            num_structures = len(keys)
+            ssne_probabilities = np.random.uniform(0,1,num_structures)*2
+
+            for ssne_prob, key in zip(ssne_probabilities, keys): #For each structure
+                if random.random()<ssne_prob:
+
+                    mut_matrix = scipy_rand(W[key].shape[0], W[key].shape[1], density=num_mutation_frac, data_rvs=np.random.randn).A * mut_strength
+                    W[key] += np.multiply(mut_matrix, W[key])
+
+
+                    # num_mutations = fastrand.pcg32bounded(int(math.ceil(num_mutation_frac * W[key].size)))  # Number of mutation instances
+                    # for _ in range(num_mutations):
+                    #     ind_dim1 = fastrand.pcg32bounded(W[key].shape[0])
+                    #     ind_dim2 = fastrand.pcg32bounded(W[key].shape[-1])
+                    #     random_num = random.random()
+                    #
+                    #     if random_num < super_mut_prob:  # Super Mutation probability
+                    #         W[key][ind_dim1, ind_dim2] += random.gauss(0, super_mut_strength *
+                    #                                                                       W[key][
+                    #                                                                           ind_dim1, ind_dim2])
+                    #     elif random_num < reset_prob:  # Reset probability
+                    #         W[key][ind_dim1, ind_dim2] = random.gauss(0, 1)
+                    #
+                    #     else:  # mutauion even normal
+                    #         W[key][ind_dim1, ind_dim2] += random.gauss(0, mut_strength *W[key][
+                    #                                                                           ind_dim1, ind_dim2])
+                    #
+                    #     # Regularization hard limit
+                    #     W[key][ind_dim1, ind_dim2] = self.regularize_weight(
+                    #         W[key][ind_dim1, ind_dim2])
 
     def copy_individual(self, master, replacee):  # Replace the replacee individual with master
         for master_drone, replacee_drone in zip(master.all_drones, replacee.all_drones):
