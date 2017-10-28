@@ -4,24 +4,16 @@ import math
 import  cPickle
 import random
 import numpy as np
-cimport numpy as np
 from scipy.special import expit
 
 
-cdef class Drone_Default:
+class Drone_Default:
     def __init__(self, params, drone_id, num_input, num_hnodes, num_mem, num_output):
-        self_drone_id = drone_id;
-        self.params = params
-        self.num_input = num_input;
-        self.num_output = num_output;
-        self.num_hnodes = num_hnodes
+        self_drone_id = drone_id; self.params = params
+        self.num_input = num_input; self.num_output = num_output; self.num_hnodes = num_hnodes
 
         #Mean and std
-        cdef float mean = 0;
-        cdef float std_input = 1.0/(math.sqrt(num_input));
-        cdef float std_hnodes = 1.0/(math.sqrt(num_hnodes));
-        cdef float std_mem = 1.0/(math.sqrt(num_mem));
-        cdef float std_output = 1.0/(math.sqrt(num_output))
+        mean = 0; std_input = 1.0/(math.sqrt(num_input)); std_hnodes = 1.0/(math.sqrt(num_hnodes)); std_mem = 1.0/(math.sqrt(num_mem)); std_output = 1.0/(math.sqrt(num_output))
 
         #Input gate
         self.w_inpgate = np.mat(np.random.normal(mean, std_input, (num_input, num_hnodes)))
@@ -141,38 +133,26 @@ cdef class Drone_Default:
 
         return np.array(self.output).tolist(), memory
 
-    cdef list graph_compute(self, list inpt, np.ndarray[np.float32_t] memory): #Feedforwards the input and computes the forward pass of the network
-        cdef np.ndarray[np.float32_t] inp = np.mat(inpt)
+    def graph_compute(self, input, memory): #Feedforwards the input and computes the forward pass of the network
+        input = np.mat(input)
 
         #Input gate
-        cdef np.ndarray[np.float32_t] input_gate_out = self.fast_sigmoid(self.linear_combination(inp, self.w_inpgate)
-                + self.linear_combination(self.output, self.w_rec_inpgate)
-                + self.linear_combination(memory, self.w_mem_inpgate)
-                + self.w_input_gate_bias)
+        input_gate_out = self.fast_sigmoid(self.linear_combination(input, self.w_inpgate) + self.linear_combination(self.output, self.w_rec_inpgate) + self.linear_combination(memory, self.w_mem_inpgate) + self.w_input_gate_bias)
 
         #Input processing
-        cdef np.ndarray[np.float32_t] block_input_out = self.fast_sigmoid(self.linear_combination(inp, self.w_inp)
-                + self.linear_combination(self.output, self.w_rec_inp)
-                + self.w_block_input_bias)
+        block_input_out = self.fast_sigmoid(self.linear_combination(input, self.w_inp) + self.linear_combination(self.output, self.w_rec_inp) + self.w_block_input_bias)
 
         #Gate the Block Input and compute the final input out
-        cdef np.ndarray[np.float32_t] input_out = np.multiply(input_gate_out, block_input_out)
+        input_out = np.multiply(input_gate_out, block_input_out)
 
         #Read Gate
-        cdef np.ndarray[np.float32_t] read_gate_out = self.fast_sigmoid(self.linear_combination(inp, self.w_readgate)
-                + self.linear_combination(self.output, self.w_rec_readgate)
-                + self.linear_combination(memory, self.w_mem_readgate)
-                + self.w_readgate_bias
-                )
+        read_gate_out = self.fast_sigmoid(self.linear_combination(input, self.w_readgate) + self.linear_combination(self.output, self.w_rec_readgate) + self.linear_combination(memory, self.w_mem_readgate) + self.w_readgate_bias)
 
         #Compute hidden activation - processing hidden output for this iteration of net run
-        cdef np.ndarray[np.float32_t] hidden_act = np.multiply(read_gate_out, memory) + input_out
+        hidden_act = np.multiply(read_gate_out, memory) + input_out
 
         #Write gate (memory cell)
-        cdef np.ndarray[np.float32_t] write_gate_out = self.fast_sigmoid(self.linear_combination(inp, self.w_writegate)
-                + self.linear_combination(self.output, self.w_rec_writegate)
-                + self.linear_combination(memory, self.w_mem_writegate)
-                + self.w_writegate_bias)
+        write_gate_out = self.fast_sigmoid(self.linear_combination(input, self.w_writegate)+ self.linear_combination(self.output, self.w_rec_writegate) + self.linear_combination(memory, self.w_mem_writegate) + self.w_writegate_bias)
 
         #Write to memory Cell - Update memory
         memory += np.multiply(write_gate_out, np.tanh(hidden_act))
