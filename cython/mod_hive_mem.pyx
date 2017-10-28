@@ -6,7 +6,7 @@ import random
 import numpy as np
 cimport numpy as np
 from scipy.special import expit
-#from scipy.sparse import random as scipy_rand
+from scipy.sparse import random as scipy_rand
 
 
 class Drone_Default:
