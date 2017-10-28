@@ -34,12 +34,12 @@ class Parameters:
     def __init__(self):
         self.population_size = 100
         self.load_colony = 0
-        self.total_gens = 50000
+        self.total_gens = 50
         self.is_hive_mem = True #Is Hive memory connected/active? If not, no communication between the agents
         self.num_evals = 5 #Number of different maps to run each individual before getting a fitness
 
         #NN specifics
-        self.num_hnodes = 10
+        self.num_hnodes = 25
         self.num_mem = 10
         self.grumb_topology = 1 #1: Default (hidden nodes cardinality attached to that of mem (No trascriber))
                                 #2: Detached (Memory independent from hidden nodes (transcribing function))
