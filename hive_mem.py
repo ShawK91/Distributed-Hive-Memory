@@ -35,7 +35,7 @@ class Parameters:
         self.load_colony = 0
         self.total_gens = 50000
         self.is_hive_mem = True #Is Hive memory connected/active? If not, no communication between the agents
-        self.num_evals = 5 #Number of different maps to run each individual before getting a fitness
+        self.num_evals = 10 #Number of different maps to run each individual before getting a fitness
 
         #NN specifics
         self.num_hnodes = 10
@@ -58,10 +58,10 @@ class Parameters:
         self.mut_distribution = 3 #1-Gaussian, 2-Laplace, 3-Uniform, ELSE-all 1s
 
         #Task Params
-        self.num_timesteps = 10
-        self.time_delay = [0,0]
+        self.num_timesteps = 8
+        self.time_delay = [1,1]
         self.num_food_items = 3
-        self.num_drones = 1
+        self.num_drones = [1,2]
         self.num_food_skus = 4
         self.num_poison_skus = [2,2] #Breaks down if all are poisonous
 
@@ -90,7 +90,8 @@ class Task_Forage:
     def __init__(self, parameters):
         self.parameters = parameters
         self.num_food_skus = parameters.num_food_skus; self.num_food_items = parameters.num_food_items; self.num_poison_skus = self.parameters.num_poison_skus
-        self.num_drones = parameters.num_drones
+        self.num_drones = parameters.num_drones[0]
+        self.max_num_drones = parameters.num_drones[1]
         self.ssne = mod.Fast_SSNE(parameters)
 
         # Initialize food containers
@@ -104,15 +105,15 @@ class Task_Forage:
             for hive in range(parameters.population_size): self.all_hives.append(mod.Hive(parameters))
             if self.parameters.load_colony: self.all_hives[0] = self.load(self.parameters.save_foldername + 'champion')
 
-        self.hive_action = [[] for drone in range (self.num_drones)] #Track each drone's action set
-        self.hive_local_reward = [[0.0 for sku_id in range (self.num_food_skus)] for drone in range (self.num_drones)]
-        self.hive_delay = [0 for drone in range(self.num_drones)]  # Track if each drone is in time delay
+        self.hive_action = [[] for drone in range (self.max_num_drones)] #Track each drone's action set
+        self.hive_local_reward = [[0.0 for sku_id in range (self.num_food_skus)] for drone in range (self.max_num_drones)]
+        self.hive_delay = [0 for drone in range(self.max_num_drones)]  # Track if each drone is in time delay
 
     def reset_food_status(self):
         self.food_status = [self.num_food_items for _ in range(self.num_food_skus)]  # Status of food (number left)
 
     def reset_hive_delay(self):
-        self.hive_delay = [0 for drone in range(self.num_drones)]  # Track if each drone is in time delay
+        self.hive_delay = [0 for drone in range(self.max_num_drones)]  # Track if each drone is in time delay
 
     def reset_food_poison_info(self):
         for i in range(len(self.food_poison_info)):
@@ -130,7 +131,7 @@ class Task_Forage:
         return min, max
 
     def reset_hive_local_reward(self):
-        self.hive_local_reward = [[0.0 for sku_id in range(self.num_food_skus)] for drone in range(self.num_drones)]
+        self.hive_local_reward = [[0.0 for sku_id in range(self.num_food_skus)] for drone in range(self.max_num_drones)]
 
     def take_action(self):
         self.reset_hive_local_reward() #Local reward to keep track of last observations
@@ -210,7 +211,7 @@ class Task_Forage:
 
 
         #SSNE Epoch: Selection and Mutation/Crossover step
-        self.ssne.epoch(self.all_hives, fitnesses)
+        self.ssne.epoch(self.all_hives, fitnesses, self.num_drones)
 
         return best_train_fitness, validation_fitness
 
@@ -251,6 +252,7 @@ if __name__ == "__main__":
     print 'Hive Memory Training with', parameters.num_input, 'inputs,', parameters.num_hnodes, 'hidden_nodes', parameters.num_output, 'outputs and', parameters.output_activation if parameters.output_activation == 'tanh' or parameters.output_activation == 'hardmax' else 'No output activation', 'Exp_opt:', '%.2f'%parameters.expected_optimal, 'Exp_min:', parameters.expected_min,'Exp_max:', parameters.expected_max
     sim_task = Task_Forage(parameters)
     for gen in range(gen_start, parameters.total_gens):
+        if gen % 500 == 0 and sim_task.num_drones < sim_task.max_num_drones: sim_task.num_drones += 1
         best_train_fitness, validation_fitness = sim_task.evolve(gen, tracker)
         print 'Gen:', gen, 'Ep_best:', '%.2f' %best_train_fitness, ' Valid_Fit:', '%.2f' %validation_fitness, 'Cumul_valid:', '%.2f'%tracker.all_tracker[1][1], 'translated to', '%.2f'%tracker.all_tracker[2][1], 'out of', '%.2f'%parameters.expected_optimal_translated
         tracker.update([best_train_fitness, validation_fitness, (validation_fitness * (parameters.expected_max-parameters.expected_min)+parameters.expected_min)], gen)

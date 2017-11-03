@@ -390,7 +390,7 @@ class Hive:
 
         #Initialize drones (controllers)
         self.all_drones = []
-        for drone_id in range(self.params.num_drones):
+        for drone_id in range(self.params.num_drones[1]):
             if params.grumb_topology == 1:
                 self.all_drones.append(
                     Drone_Default(params, drone_id, params.num_input, params.num_hnodes, params.num_mem, params.num_output))
@@ -468,11 +468,11 @@ class Fast_SSNE:
                     W2[keys[tensor_choice]][:, ind_cr] = W1[keys[tensor_choice]][:, ind_cr]
                     #W2[keys[tensor_choice]][ind_cr, :] = W1[keys[tensor_choice]][ind_cr, :]
 
-    def hive_crossover(self, hive_1, hive_2): #Transfer drone between two hives
-        num_transfer = fastrand.pcg32bounded(self.parameters.num_drones)+1
+    def hive_crossover(self, hive_1, hive_2, num_drones): #Transfer drone between two hives
+        num_transfer = fastrand.pcg32bounded(num_drones)+1
         for _ in range(num_transfer):
-            source_id = fastrand.pcg32bounded(self.parameters.num_drones)
-            receiver_id = fastrand.pcg32bounded(self.parameters.num_drones)
+            source_id = fastrand.pcg32bounded(num_drones)
+            receiver_id = fastrand.pcg32bounded(num_drones)
             if fastrand.pcg32bounded(2) == 0:
                 for key in hive_1.all_drones[receiver_id].param_dict.keys():
                     hive_2.all_drones[receiver_id].param_dict[key][:] = hive_1.all_drones[source_id].param_dict[key]
@@ -589,7 +589,7 @@ class Fast_SSNE:
                 dim = drone.param_dict[key].shape
                 drone.param_dict[key][:] = np.mat(np.random.uniform(-1, 1, (dim[0], dim[1])))
 
-    def epoch(self, all_hives, fitness_evals):
+    def epoch(self, all_hives, fitness_evals, current_num_drones):
 
         # Entire epoch is handled with indices; Index rank nets by fitness evaluation (0 is the best after reversing)
         index_rank = self.list_argsort(fitness_evals); index_rank.reverse()
@@ -636,7 +636,7 @@ class Fast_SSNE:
         # Crossover for selected offsprings
         for i, j in zip(offsprings[0::2], offsprings[1::2]):
             if random.random() < self.parameters.crossover_prob: self.crossover_inplace(all_hives[i], all_hives[j])
-            if random.random() < self.parameters.hive_crossover_prob: self.hive_crossover(all_hives[i], all_hives[j])
+            if random.random() < self.parameters.hive_crossover_prob: self.hive_crossover(all_hives[i], all_hives[j], current_num_drones)
 
         # Mutate all genes in the population except the new elitists plus homozenize
         for i in range(self.population_size):
