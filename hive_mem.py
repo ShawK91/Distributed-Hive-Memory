@@ -32,7 +32,7 @@ class Tracker(): #Tracker
 class Parameters:
     def __init__(self):
         self.population_size = 100
-        self.load_colony = 0
+        self.load_colony = 1
         self.total_gens = 50000
         self.is_hive_mem = True #Is Hive memory connected/active? If not, no communication between the agents
         self.num_evals = 10 #Number of different maps to run each individual before getting a fitness
@@ -85,6 +85,8 @@ class Parameters:
         self.expected_max /= ((self.num_poison_skus[1] + 1.0) - self.num_poison_skus[0])
         self.expected_min /= ((self.num_poison_skus[1] + 1.0) - self.num_poison_skus[0])
         self.expected_optimal_translated = (self.expected_optimal * (self.expected_max-self.expected_min)+self.expected_min)
+
+        #print self.expected_min, self.expected_max
 
 class Task_Forage:
     def __init__(self, parameters):
@@ -200,15 +202,6 @@ class Task_Forage:
             minimum, maximum = self.reset_food_poison_info()
             validation_fitness += (self.run_trial(self.all_hives[champion_index])-minimum) / ((maximum-minimum)*self.parameters.num_evals)
 
-        #Save champion
-        if gen % 100 == 0:
-            ig_folder = self.parameters.save_foldername
-            if not os.path.exists(ig_folder): os.makedirs(ig_folder)
-            self.save(self.all_hives[champion_index], self.parameters.save_foldername + 'champion') #Save champion
-            self.save(self.all_hives, self.parameters.save_foldername + 'colony')  # Save entire colony of hives (all population)
-            self.save(tracker, self.parameters.save_foldername + 'tracker') #Save the tracker file
-            np.savetxt(self.parameters.save_foldername + 'gen_tag', np.array([gen + 1]), fmt='%.3f', delimiter=',')
-
 
         #SSNE Epoch: Selection and Mutation/Crossover step
         self.ssne.epoch(self.all_hives, fitnesses, self.num_drones)
@@ -246,17 +239,25 @@ if __name__ == "__main__":
     if parameters.load_colony:
         gen_start = int(np.loadtxt(parameters.save_foldername + 'gen_tag'))
         tracker = mod.unpickle(parameters.save_foldername + 'tracker')
+        sim_task = mod.unpickle(parameters.save_foldername + 'task_hive_mem')
     else:
         tracker = Tracker(parameters, ['best_train', 'valid', 'valid_translated'], '_hive_mem.csv')  # Initiate tracker
         gen_start = 1
+        sim_task = Task_Forage(parameters)
     print 'Hive Memory Training with', parameters.num_input, 'inputs,', parameters.num_hnodes, 'hidden_nodes', parameters.num_output, 'outputs and', parameters.output_activation if parameters.output_activation == 'tanh' or parameters.output_activation == 'hardmax' else 'No output activation', 'Exp_opt:', '%.2f'%parameters.expected_optimal, 'Exp_min:', parameters.expected_min,'Exp_max:', parameters.expected_max
-    sim_task = Task_Forage(parameters)
     for gen in range(gen_start, parameters.total_gens):
-        if gen % 500 == 0 and sim_task.num_drones < sim_task.max_num_drones: sim_task.num_drones += 1
+        if gen % 750 == 0 and sim_task.num_drones < sim_task.max_num_drones: sim_task.num_drones += 1
         best_train_fitness, validation_fitness = sim_task.evolve(gen, tracker)
         print 'Gen:', gen, 'Ep_best:', '%.2f' %best_train_fitness, ' Valid_Fit:', '%.2f' %validation_fitness, 'Cumul_valid:', '%.2f'%tracker.all_tracker[1][1], 'translated to', '%.2f'%tracker.all_tracker[2][1], 'out of', '%.2f'%parameters.expected_optimal_translated
         tracker.update([best_train_fitness, validation_fitness, (validation_fitness * (parameters.expected_max-parameters.expected_min)+parameters.expected_min)], gen)
 
+        #Save progress
+        if gen % 100 == 0:
+            ig_folder = parameters.save_foldername
+            if not os.path.exists(ig_folder): os.makedirs(ig_folder)
+            mod.pickle_object(sim_task, parameters.save_foldername + 'task_hive_mem') #Save champion
+            mod.pickle_object(tracker, parameters.save_foldername + 'tracker') #Save the tracker file
+            np.savetxt(parameters.save_foldername + 'gen_tag', np.array([gen + 1]), fmt='%.3f', delimiter=',')
 
 
 
