@@ -58,7 +58,7 @@ class Parameters:
         self.mut_distribution = 3 #1-Gaussian, 2-Laplace, 3-Uniform, ELSE-all 1s
 
         #Task Params
-        self.num_timesteps = 12
+        self.num_timesteps = 15
         self.time_delay = [1,1]
         self.num_food_items = 5
         self.num_drones = 10
