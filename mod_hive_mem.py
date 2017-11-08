@@ -380,6 +380,66 @@ class Drone_FF:
     def reset(self):
         return
 
+class Central_FF:
+    def __init__(self, params, num_input, num_hnodes, num_mem, num_output):
+        self.params = params
+        self.num_input = num_input; self.num_output = num_output; self.num_hnodes = num_hnodes
+
+        # Mean and std
+        mean = 0; std_input = 1.0 / (math.sqrt(num_input)); std_hnodes = 1.0 / (math.sqrt(num_hnodes));
+
+        #Block Input
+        self.w_inp = np.mat(np.random.normal(mean, std_input, (num_input, num_hnodes)))
+
+        #Output weights
+        self.w_hid_out= np.mat(np.random.normal(mean, std_hnodes, (num_hnodes, num_output)))
+
+        #Biases
+        self.w_inp_bias = np.mat(np.random.normal(mean, 0.1, (1, num_hnodes)))
+        self.w_hid_out_bias = np.mat(np.random.normal(mean, 0.1, (1, num_output)))
+
+        self.param_dict = {'w_inp': self.w_inp,
+                           'w_hid_out': self.w_hid_out,
+                           'w_inp_bias': self.w_inp_bias,
+                           'w_hid_out_bias': self.w_hid_out_bias}
+
+
+    def linear_combination(self, w_matrix, layer_input): #Linear combine weights with inputs
+        return np.dot(w_matrix, layer_input) #Linear combination of weights and inputs
+
+    def relu(self, layer_input):    #Relu transformation function
+        for x in range(len(layer_input)):
+            if layer_input[x] < 0:
+                layer_input[x] = 0
+        return layer_input
+
+    def fast_sigmoid(self, layer_input): #Sigmoid transform
+        layer_input = expit(layer_input)
+        return layer_input
+
+    def softmax(self, layer_input): #Softmax transform
+        layer_input = np.exp(layer_input)
+        layer_input = layer_input / np.sum(layer_input)
+        return layer_input
+
+    def hardmax(self, layer_input):
+        return layer_input == np.max(layer_input)
+
+    def graph_compute(self, input): #Feedforwards the input and computes the forward pass of the network
+        input = np.mat(input)
+
+        #Input processing
+        hidden_act = self.fast_sigmoid(self.linear_combination(input, self.w_inp) + self.w_inp_bias)
+
+        #Compute final output
+        self.output = self.linear_combination(hidden_act, self.w_hid_out) + self.w_hid_out_bias
+        if self.params.output_activation == 'tanh': self.output = np.tanh(self.output)
+        elif self.params.output_activation == 'hardmax': self.output = self.hardmax(self.output)
+
+        return np.array(self.output).tolist()
+
+    def reset(self):
+        return
 
 class Hive:
     def __init__(self, params, mean = 0, std = 1):
@@ -389,25 +449,13 @@ class Hive:
         self.memory = np.mat(np.zeros((1, self.params.num_mem)))
 
         #Initialize drones (controllers)
-        self.all_drones = []
-        for drone_id in range(self.params.num_drones):
-            if params.grumb_topology == 1:
-                self.all_drones.append(
-                    Drone_Default(params, drone_id, params.num_input, params.num_hnodes, params.num_mem, params.num_output))
-            if params.grumb_topology == 2:
-                self.all_drones.append(
-                    Drone_Detached(params, drone_id, params.num_input, params.num_hnodes, params.num_mem, params.num_output))
-            if params.grumb_topology == 3:
-                self.all_drones.append(
-                    Drone_FF(params, drone_id, params.num_input, params.num_hnodes, params.num_mem, params.num_output))
+        self.central_FF = Central_FF(params, params.num_input, params.num_hnodes, params.num_mem, params.num_output)
 
     def reset(self):
         self.memory = np.mat(np.zeros((1,self.params.num_mem)))
-        for drone in self.all_drones:
-            drone.reset()
 
-    def forward(self, input, drone_id):
-        output = self.all_drones[drone_id].graph_compute(input, self.memory)
+    def forward(self, input):
+        output = self.central_FF.graph_compute(input)
         return output[0]
 
 class Fast_SSNE:
@@ -444,29 +492,29 @@ class Fast_SSNE:
         return weight
 
     def crossover_inplace(self, hive_1, hive_2):
-        for drone_1, drone_2 in zip(hive_1.all_drones, hive_2.all_drones):
+        drone_1, drone_2  =  hive_1.central_FF, hive_2.central_FF
 
-            keys = list(drone_1.param_dict.keys())
+        keys = list(drone_1.param_dict.keys())
 
-            # References to the variable tensors
-            W1 = drone_1.param_dict
-            W2 = drone_2.param_dict
-            num_variables = len(W1)
-            if num_variables != len(W2): print 'Warning: Genes for crossover might be incompatible'
+        # References to the variable tensors
+        W1 = drone_1.param_dict
+        W2 = drone_2.param_dict
+        num_variables = len(W1)
+        if num_variables != len(W2): print 'Warning: Genes for crossover might be incompatible'
 
-            # Crossover opertation [Indexed by column, not rows]
-            num_cross_overs = fastrand.pcg32bounded(num_variables * 2)  # Lower bounded on full swaps
-            for i in range(num_cross_overs):
-                tensor_choice = fastrand.pcg32bounded(num_variables)  # Choose which tensor to perturb
-                receiver_choice = random.random()  # Choose which gene to receive the perturbation
-                if receiver_choice < 0.5:
-                    ind_cr = fastrand.pcg32bounded(W1[keys[tensor_choice]].shape[-1])  #
-                    W1[keys[tensor_choice]][:, ind_cr] = W2[keys[tensor_choice]][:, ind_cr]
-                    #W1[keys[tensor_choice]][ind_cr, :] = W2[keys[tensor_choice]][ind_cr, :]
-                else:
-                    ind_cr = fastrand.pcg32bounded(W2[keys[tensor_choice]].shape[-1])  #
-                    W2[keys[tensor_choice]][:, ind_cr] = W1[keys[tensor_choice]][:, ind_cr]
-                    #W2[keys[tensor_choice]][ind_cr, :] = W1[keys[tensor_choice]][ind_cr, :]
+        # Crossover opertation [Indexed by column, not rows]
+        num_cross_overs = fastrand.pcg32bounded(num_variables * 2)  # Lower bounded on full swaps
+        for i in range(num_cross_overs):
+            tensor_choice = fastrand.pcg32bounded(num_variables)  # Choose which tensor to perturb
+            receiver_choice = random.random()  # Choose which gene to receive the perturbation
+            if receiver_choice < 0.5:
+                ind_cr = fastrand.pcg32bounded(W1[keys[tensor_choice]].shape[-1])  #
+                W1[keys[tensor_choice]][:, ind_cr] = W2[keys[tensor_choice]][:, ind_cr]
+                #W1[keys[tensor_choice]][ind_cr, :] = W2[keys[tensor_choice]][ind_cr, :]
+            else:
+                ind_cr = fastrand.pcg32bounded(W2[keys[tensor_choice]].shape[-1])  #
+                W2[keys[tensor_choice]][:, ind_cr] = W1[keys[tensor_choice]][:, ind_cr]
+                #W2[keys[tensor_choice]][ind_cr, :] = W1[keys[tensor_choice]][ind_cr, :]
 
     def hive_crossover(self, hive_1, hive_2): #Transfer drone between two hives
         num_transfer = fastrand.pcg32bounded(self.parameters.num_drones)+1
@@ -504,90 +552,50 @@ class Fast_SSNE:
         super_mut_prob = 0.05
         reset_prob = super_mut_prob + 0.05
 
+        drone = hive.central_FF #QUICK HACK
 
-        for drone in hive.all_drones:
-            # References to the variable keys
-            keys = list(drone.param_dict.keys())
-            W = drone.param_dict
-            num_structures = len(keys)
-            ssne_probabilities = np.random.uniform(0,1,num_structures)*2
+        # References to the variable keys
+        keys = list(drone.param_dict.keys())
+        W = drone.param_dict
+        num_structures = len(keys)
+        ssne_probabilities = np.random.uniform(0,1,num_structures)*2
 
-            for ssne_prob, key in zip(ssne_probabilities, keys): #For each structure
-                if random.random()<ssne_prob:
+        for ssne_prob, key in zip(ssne_probabilities, keys): #For each structure
+            if random.random()<ssne_prob:
 
-                    num_mutations = fastrand.pcg32bounded(int(math.ceil(num_mutation_frac * W[key].size)))  # Number of mutation instances
-                    for _ in range(num_mutations):
-                        ind_dim1 = fastrand.pcg32bounded(W[key].shape[0])
-                        ind_dim2 = fastrand.pcg32bounded(W[key].shape[-1])
-                        random_num = random.random()
+                num_mutations = fastrand.pcg32bounded(int(math.ceil(num_mutation_frac * W[key].size)))  # Number of mutation instances
+                for _ in range(num_mutations):
+                    ind_dim1 = fastrand.pcg32bounded(W[key].shape[0])
+                    ind_dim2 = fastrand.pcg32bounded(W[key].shape[-1])
+                    random_num = random.random()
 
-                        if random_num < super_mut_prob:  # Super Mutation probability
-                            W[key][ind_dim1, ind_dim2] += random.gauss(0, super_mut_strength *
-                                                                                          W[key][
-                                                                                              ind_dim1, ind_dim2])
-                        elif random_num < reset_prob:  # Reset probability
-                            W[key][ind_dim1, ind_dim2] = random.gauss(0, 1)
+                    if random_num < super_mut_prob:  # Super Mutation probability
+                        W[key][ind_dim1, ind_dim2] += random.gauss(0, super_mut_strength *
+                                                                                      W[key][
+                                                                                          ind_dim1, ind_dim2])
+                    elif random_num < reset_prob:  # Reset probability
+                        W[key][ind_dim1, ind_dim2] = random.gauss(0, 1)
 
-                        else:  # mutauion even normal
-                            W[key][ind_dim1, ind_dim2] += random.gauss(0, mut_strength *W[key][
-                                                                                              ind_dim1, ind_dim2])
+                    else:  # mutauion even normal
+                        W[key][ind_dim1, ind_dim2] += random.gauss(0, mut_strength *W[key][
+                                                                                          ind_dim1, ind_dim2])
 
-                        # Regularization hard limit
-                        W[key][ind_dim1, ind_dim2] = self.regularize_weight(
-                            W[key][ind_dim1, ind_dim2])
+                    # Regularization hard limit
+                    W[key][ind_dim1, ind_dim2] = self.regularize_weight(
+                        W[key][ind_dim1, ind_dim2])
 
-    def trial_mutate_inplace(self, hive):
-        mut_strength = 0.1
-        num_mutation_frac = 0.1
-        super_mut_prob = 0.05
-
-        for drone in hive.all_drones:
-            # References to the variable keys
-            keys = list(drone.param_dict.keys())
-            W = drone.param_dict
-            num_structures = len(keys)
-            ssne_probabilities = np.random.uniform(0,1,num_structures)*2
-
-            for ssne_prob, key in zip(ssne_probabilities, keys): #For each structure
-                if random.random()<ssne_prob:
-
-                    mut_matrix = scipy_rand(W[key].shape[0], W[key].shape[1], density=num_mutation_frac, data_rvs=np.random.randn).A * mut_strength
-                    W[key] += np.multiply(mut_matrix, W[key])
-
-
-                    # num_mutations = fastrand.pcg32bounded(int(math.ceil(num_mutation_frac * W[key].size)))  # Number of mutation instances
-                    # for _ in range(num_mutations):
-                    #     ind_dim1 = fastrand.pcg32bounded(W[key].shape[0])
-                    #     ind_dim2 = fastrand.pcg32bounded(W[key].shape[-1])
-                    #     random_num = random.random()
-                    #
-                    #     if random_num < super_mut_prob:  # Super Mutation probability
-                    #         W[key][ind_dim1, ind_dim2] += random.gauss(0, super_mut_strength *
-                    #                                                                       W[key][
-                    #                                                                           ind_dim1, ind_dim2])
-                    #     elif random_num < reset_prob:  # Reset probability
-                    #         W[key][ind_dim1, ind_dim2] = random.gauss(0, 1)
-                    #
-                    #     else:  # mutauion even normal
-                    #         W[key][ind_dim1, ind_dim2] += random.gauss(0, mut_strength *W[key][
-                    #                                                                           ind_dim1, ind_dim2])
-                    #
-                    #     # Regularization hard limit
-                    #     W[key][ind_dim1, ind_dim2] = self.regularize_weight(
-                    #         W[key][ind_dim1, ind_dim2])
 
     def copy_individual(self, master, replacee):  # Replace the replacee individual with master
-        for master_drone, replacee_drone in zip(master.all_drones, replacee.all_drones):
-            keys = master_drone.param_dict.keys()
-            for key in keys:
-                replacee_drone.param_dict[key][:] = master_drone.param_dict[key]
+
+        keys = master.central_FF.param_dict.keys()
+        for key in keys:
+            replacee.central_FF.param_dict[key][:] = master.central_FF.param_dict[key]
 
     def reset_genome(self, gene):
-        for drone in gene.all_drones:
-            keys = drone.param_dict
-            for key in keys:
-                dim = drone.param_dict[key].shape
-                drone.param_dict[key][:] = np.mat(np.random.uniform(-1, 1, (dim[0], dim[1])))
+        keys = gene.central_FF.param_dict
+        for key in keys:
+            dim = gene.central_FF.param_dict[key].shape
+            gene.central_FF.param_dict[key][:] = np.mat(np.random.uniform(-1, 1, (dim[0], dim[1])))
 
     def epoch(self, all_hives, fitness_evals):
 
@@ -636,13 +644,13 @@ class Fast_SSNE:
         # Crossover for selected offsprings
         for i, j in zip(offsprings[0::2], offsprings[1::2]):
             if random.random() < self.parameters.crossover_prob: self.crossover_inplace(all_hives[i], all_hives[j])
-            if random.random() < self.parameters.hive_crossover_prob: self.hive_crossover(all_hives[i], all_hives[j])
+            #if random.random() < self.parameters.hive_crossover_prob: self.hive_crossover(all_hives[i], all_hives[j])
 
         # Mutate all genes in the population except the new elitists plus homozenize
         for i in range(self.population_size):
             if i not in new_elitists:  # Spare the new elitists
-                if random.random() < self.parameters.homogenize_prob: self.homogenize(all_hives[i])
-                if random.random() < self.parameters.homogenize_gates_prob: self.homogenize_gates(all_hives[i])
+                #if random.random() < self.parameters.homogenize_prob: self.homogenize(all_hives[i])
+                #if random.random() < self.parameters.homogenize_gates_prob: self.homogenize_gates(all_hives[i])
                 if random.random() < self.parameters.mutation_prob: self.mutate_inplace(all_hives[i])
 
 

@@ -2,6 +2,8 @@ import numpy as np, os, math
 import mod_hive_mem as mod, sys
 from random import randint
 
+
+
 class Tracker(): #Tracker
     def __init__(self, parameters, vars_string, project_string):
         self.vars_string = vars_string; self.project_string = project_string
@@ -37,13 +39,11 @@ class Parameters:
         self.is_hive_mem = True #Is Hive memory connected/active? If not, no communication between the agents
         self.num_evals = 5 #Number of different maps to run each individual before getting a fitness
 
+
         #NN specifics
         self.num_hnodes = 10
         self.num_mem = 10
-        self.grumb_topology = 1 #1: Default (hidden nodes cardinality attached to that of mem (No trascriber))
-                                #2: Detached (Memory independent from hidden nodes (transcribing function))
-                                #3: FF (Normal Feed-Forward Net)
-        self.output_activation = 'tanh' #tanh or hardmax
+        self.output_activation = 'tanh'  # tanh or hardmax
 
         #SSNE stuff
         self.elite_fraction = 0.03
@@ -58,17 +58,17 @@ class Parameters:
         self.mut_distribution = 3 #1-Gaussian, 2-Laplace, 3-Uniform, ELSE-all 1s
 
         #Task Params
-        self.num_timesteps = 10
-        self.time_delay = [0,0]
+        self.num_timesteps = 5
+        self.time_delay = [1,1]
         self.num_food_items = 3
-        self.num_drones = 1
-        self.num_food_skus = 4
-        self.num_poison_skus = [2,2] #Breaks down if all are poisonous
+        self.num_drones = 2
+        self.num_food_skus = 2
+        self.num_poison_skus = [1,1] #Breaks down if all are poisonous
 
         #Dependents
-        self.num_output = self.num_food_skus
+        self.num_output = self.num_food_skus * self.num_drones
+        self.num_hnodes *= self.num_drones
         self.num_input = self.num_food_skus * 2
-        if self.grumb_topology == 1: self.num_mem = self.num_hnodes
         self.save_foldername = 'R_Hive_mem/'
         if not os.path.exists(self.save_foldername): os.makedirs(self.save_foldername)
 
@@ -105,14 +105,14 @@ class Task_Forage:
             if self.parameters.load_colony: self.all_hives[0] = self.load(self.parameters.save_foldername + 'champion')
 
         self.hive_action = [[] for drone in range (self.num_drones)] #Track each drone's action set
-        self.hive_local_reward = [[0.0 for sku_id in range (self.num_food_skus)] for drone in range (self.num_drones)]
-        self.hive_delay = [0 for drone in range(self.num_drones)]  # Track if each drone is in time delay
+        self.hive_local_reward = [0.0 for sku_id in range (self.num_food_skus)]
+        self.hive_delay = 0.0  # Track if each drone is in time delay
 
     def reset_food_status(self):
         self.food_status = [self.num_food_items for _ in range(self.num_food_skus)]  # Status of food (number left)
 
     def reset_hive_delay(self):
-        self.hive_delay = [0 for drone in range(self.num_drones)]  # Track if each drone is in time delay
+        self.hive_delay = 0.0  # Track if each drone is in time delay
 
     def reset_food_poison_info(self):
         for i in range(len(self.food_poison_info)):
@@ -130,35 +130,39 @@ class Task_Forage:
         return min, max
 
     def reset_hive_local_reward(self):
-        self.hive_local_reward = [[0.0 for sku_id in range(self.num_food_skus)] for drone in range(self.num_drones)]
+        self.hive_local_reward = [0.0 for sku_id in range(self.num_food_skus)]
 
-    def take_action(self):
+    def take_action(self, action_set):
         self.reset_hive_local_reward() #Local reward to keep track of last observations
-        temp_food_status = self.food_status[:]
-        for drone_id in range(self.num_drones): #act with drones
-            if self.hive_delay[drone_id] <= 0: #If not under time delay
-                self.hive_delay[drone_id] = randint(self.parameters.time_delay[0], self.parameters.time_delay[1])
-                action = self.hive_action[drone_id]
-                if temp_food_status[action] != 0: #If anything left of the chosen food sku
+
+        if self.hive_delay <= 0: #If not under time delay
+            self.hive_delay = randint(self.parameters.time_delay[0], self.parameters.time_delay[1])
+
+            for dr in range(self.parameters.num_drones):
+                action_softmax = action_set[0:self.parameters.num_food_skus] #Sample first action_softmax
+                action_set = action_set[self.num_food_skus:] #Update Action set list
+
+                action = action_softmax.index(max(action_softmax)) #Get action
+                if self.food_status[action] != 0: #If anything left of the chosen food sku
                     self.food_status[action] -= 1 #Decrement food item of the sku chosen
-                    if self.food_poison_info[action]: self.hive_local_reward[drone_id][action] -= 1.0
-                    else: self.hive_local_reward[drone_id][action] += 1.0
-            else: self.hive_delay[drone_id] -= 1
+                    if self.food_poison_info[action]: self.hive_local_reward[action] -= 1.0
+                    else: self.hive_local_reward[action] += 1.0
+
+        else: self.hive_delay -= 1
+
 
     def run_trial(self, hive):
         self.reset_food_status()
         hive.reset()
         self.reset_hive_delay()
         for timestep in range(self.parameters.num_timesteps):
-            for drone_id in range(self.num_drones):
-                if self.hive_delay[drone_id] > 0:
-                    state = [0 for _ in range(self.num_food_skus)] + self.hive_local_reward[drone_id]
-                    _ = hive.forward(state, drone_id)  # Run drones one step
-                else:
-                    state = self.food_status + self.hive_local_reward[drone_id]
-                    action = hive.forward(state, drone_id) #Run drones one step
-                    self.hive_action[drone_id] = action.index(max(action))
-            self.take_action() #Move the entire hive up one step
+            if self.hive_delay > 0:
+                state = [0.0 for _ in range(self.num_food_skus)] + self.hive_local_reward
+                _ = hive.forward(state)  # Run drones one step
+            else:
+                state = self.food_status + self.hive_local_reward
+                action_set = hive.forward(state) #Run drones one step
+            self.take_action(action_set) #Move the entire hive up one step
 
         #Compute reward
         reward = 0.0
@@ -248,7 +252,7 @@ if __name__ == "__main__":
     else:
         tracker = Tracker(parameters, ['best_train', 'valid', 'valid_translated'], '_hive_mem.csv')  # Initiate tracker
         gen_start = 1
-    print 'Hive Memory Training with', parameters.num_input, 'inputs,', parameters.num_hnodes, 'hidden_nodes', parameters.num_output, 'outputs and', parameters.output_activation if parameters.output_activation == 'tanh' or parameters.output_activation == 'hardmax' else 'No output activation', 'Exp_opt:', '%.2f'%parameters.expected_optimal, 'Exp_min:', parameters.expected_min,'Exp_max:', parameters.expected_max
+    print 'Hive Memory Training with Centralized Solver', parameters.num_input, 'inputs,', parameters.num_hnodes, 'hidden_nodes', parameters.num_output, 'outputs and', parameters.output_activation if parameters.output_activation == 'tanh' or parameters.output_activation == 'hardmax' else 'No output activation', 'Exp_opt:', '%.2f'%parameters.expected_optimal, 'Exp_min:', parameters.expected_min,'Exp_max:', parameters.expected_max
     sim_task = Task_Forage(parameters)
     for gen in range(gen_start, parameters.total_gens):
         best_train_fitness, validation_fitness = sim_task.evolve(gen, tracker)
